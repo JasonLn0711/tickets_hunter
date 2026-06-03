@@ -140,7 +140,7 @@ def _parse_tixcraft_soft_block_delay(config_dict):
     if delay_seconds <= 0:
         return None
 
-    return delay_seconds
+    return min(delay_seconds, 600)
 
 
 def _resolve_soft_block_wait_seconds(config_dict, scope_url, default_wait_seconds=None):

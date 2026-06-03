@@ -323,7 +323,7 @@ function applyOrRestore(selector, property, englishValue) {
 function renderReadmePane() {
     const englishHtml = `
 <div class="alert alert-info" role="alert">
-  <p class="mb-0"><strong>Version</strong>: Tickets Hunter (2026.05.17) | <strong>Technical support</strong>: Claude Code AI-assisted development</p>
+  <p class="mb-0"><strong>Version</strong>: Tickets Hunter (2026.06.03) | <strong>Technical support</strong>: Claude Code AI-assisted development</p>
 </div>
 
 <div class="accordion mb-3" id="devStatusAccordion">
@@ -1139,7 +1139,7 @@ function message_old(msg)
 function maxbot_launch()
 {
     run_message(uiText('launching'));
-    save_changes_to_dict(true);
+    if (!save_changes_to_dict(true)) return;
     maxbot_save_api(maxbot_run_api);
 }
 
@@ -1189,6 +1189,7 @@ function save_changes_to_dict(silent_flag)
     if (!ticket_number_value)
     {
         message(uiText('missing_ticket_number'));
+        return false;
     } else {
         if (tixcraft_soft_block_delay) {
             tixcraft_soft_block_delay.classList.remove('is-invalid');
@@ -1200,7 +1201,7 @@ function save_changes_to_dict(silent_flag)
             if (!is_integer || parsed_delay < 1 || parsed_delay > 600) {
                 tixcraft_soft_block_delay.classList.add('is-invalid');
                 message(uiText('invalid_tixcraft_soft_block_delay'));
-                return;
+                return false;
             }
         }
 
@@ -1323,7 +1324,9 @@ function save_changes_to_dict(silent_flag)
         if(!silent_flag) {
             message(uiText('saved'));
         }
+        return true;
     }
+    return false;
 }
 
 function maxbot_save_api(callback)
@@ -1389,7 +1392,7 @@ function maxbot_resume_api()
 function maxbot_save()
 {
     run_message(uiText('saving'));
-    save_changes_to_dict(true);  // silent mode - don't show modal
+    if (!save_changes_to_dict(true)) return;
     maxbot_save_api(function() {
         run_message(uiText('saved'));
     });
@@ -1488,9 +1491,9 @@ function check_unsaved_fields()
             //console.log(field.value);
             //console.log(formated_saved_value);
             if(typeof formated_saved_value == "string") {
-                if(formated_input=='') 
+                if(formated_input=='')
                     formated_input='""';
-                if(formated_saved_value=='') 
+                if(formated_saved_value=='')
                     formated_saved_value='""';
                 if(formated_saved_value.indexOf('"') > -1) {
                     if(formated_input.length) {
@@ -1510,6 +1513,16 @@ function check_unsaved_fields()
                 $("#"+f).removeClass("is-invalid");
             }
         });
+
+        if (tixcraft_allow_less_tickets) {
+            const currentValue = tixcraft_allow_less_tickets.checked;
+            const savedValue = settings.tixcraft?.allow_less_tickets || false;
+            if (currentValue !== savedValue) {
+                tixcraft_allow_less_tickets.classList.add('is-invalid');
+            } else {
+                tixcraft_allow_less_tickets.classList.remove('is-invalid');
+            }
+        }
 
     }
 }
