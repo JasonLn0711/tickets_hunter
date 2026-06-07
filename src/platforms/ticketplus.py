@@ -1316,9 +1316,7 @@ async def nodriver_ticketplus_check_queue_status(tab, config_dict, force_show_de
                 const hasQueueKeyword = queueKeywords.some(keyword => bodyText.includes(keyword));
 
                 const overlayScrim = document.querySelector('.v-overlay__scrim');
-                const hasOverlay = overlayScrim &&
-                    (overlayScrim.style.opacity === '1' ||
-                     overlayScrim.style.display !== 'none');
+                const hasOverlay = overlayScrim && overlayScrim.style.opacity === '1';
 
                 const dialogText = document.querySelector('.v-dialog')?.textContent || '';
                 const hasQueueDialog = dialogText.includes('\u6392\u968a') ||
