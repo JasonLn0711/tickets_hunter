@@ -1,7 +1,7 @@
 # Debug Logger 統一規格書
 
 **文件說明**：定義 DebugLogger 的時間戳格式、類別架構與全專案遷移規則（v3.1）
-**最後更新**：2026-02-12
+**最後更新**：2026-06-10
 
 ---
 
@@ -73,16 +73,16 @@ if config_dict:
     show_debug_message = config_dict.get("advanced", {}).get("verbose", False)
 
 # 模式 5：條件組合（3 處）
-# A. Cloudflare bypass + 模式覆蓋 (行 389)
+# A. Cloudflare bypass + 模式覆蓋（nodriver_cloudflare_challenge）
 show_debug_message = (config_dict["advanced"]["verbose"] or
                      CLOUDFLARE_BYPASS_MODE == "debug")
 if CLOUDFLARE_BYPASS_MODE == "auto":
     show_debug_message = False
 
-# B. force_show_debug 參數 (行 7476)
+# B. force_show_debug 參數
 show_debug_message = config_dict["advanced"].get("verbose", False) or force_show_debug
 
-# C. 三重 AND (行 7529)
+# C. 三重 AND
 if show_debug_message and is_in_queue and force_show_debug:
 ```
 
@@ -93,39 +93,39 @@ if show_debug_message and is_in_queue and force_show_debug:
 開發者的「手動開關」——開發時改 `True` 除錯，上線前改回 `False`。
 實際效果：**永遠等於 False**（因為第二行覆蓋第一行）。
 
-| # | 函數名 | 行號 | 設計意圖 |
-|---|--------|------|----------|
-| 1 | `guess_answer_list_from_multi_options` | 515-516 | 多選項猜答案 |
-| 2 | `get_offical_hint_string_from_symbol` | 722-723 | 官方提示解析 |
-| 3 | `guess_answer_list_from_hint` | 764-765 | 從提示猜答案 |
-| 4 | `get_answer_list_by_question` | 1089-1090 | 題目解析 |
-| 5 | `get_matched_blocks_by_keyword_item_set` | 1151-1152 | 關鍵字區塊配對 |
-| 6 | `guess_tixcraft_question` | 1389-1390 | 拓元驗證碼猜測 |
-| 7 | `kktix_get_web_datetime` | 1559-1560 | KKTIX 日期解析 |
-| 8 | `get_answer_string_from_web_date` | 1616-1617 | 從網頁日期推答案 |
-| 9 | `get_answer_string_from_web_time` | 1747-1748 | 從網頁時間推答案 |
-| 10 | `get_answer_list_from_question_string` | 1834-1835 | 核心樞紐：題目字串解析 |
+| # | 函數名 | 設計意圖 |
+|---|--------|----------|
+| 1 | `guess_answer_list_from_multi_options` | 多選項猜答案 |
+| 2 | `get_offical_hint_string_from_symbol` | 官方提示解析 |
+| 3 | `guess_answer_list_from_hint` | 從提示猜答案 |
+| 4 | `get_answer_list_by_question` | 題目解析 |
+| 5 | `get_matched_blocks_by_keyword_item_set` | 關鍵字區塊配對 |
+| 6 | `guess_tixcraft_question` | 拓元驗證碼猜測 |
+| 7 | `kktix_get_web_datetime` | KKTIX 日期解析 |
+| 8 | `get_answer_string_from_web_date` | 從網頁日期推答案 |
+| 9 | `get_answer_string_from_web_time` | 從網頁時間推答案 |
+| 10 | `get_answer_list_from_question_string` | 核心樞紐：題目字串解析 |
 
-**特殊**：#5 `get_matched_blocks_by_keyword_item_set` 已有 `config_dict` 參數，且行 1154-1155 有 `if config_dict["advanced"]["verbose"]: show_debug_message = True` 邏輯，是唯一已正確讀取設定的函數。
+**特殊**：#5 `get_matched_blocks_by_keyword_item_set` 已有 `config_dict` 參數，且函數內有 `if config_dict["advanced"]["verbose"]: show_debug_message = True` 邏輯，是唯一已正確讀取設定的函數。
 
 #### 模式 3：nodriver 函數參數預設值（10 處）
 
 函數簽名帶 `show_debug_message` 參數，內部又用 `config_dict` 覆蓋。
 效果：**參數預設值被覆蓋，實際由 config 控制**。參數是冗餘的。
 
-| # | 函數名 | 行號 | 預設值 | 有 config_dict |
-|---|--------|------|--------|---------------|
-| 1 | `nodriver_check_checkbox_enhanced` | 270 | `False` | 無（純參數控制） |
-| 2 | `nodriver_kktix_check_ticket_page_status` | 2008 | `False` | 無（純參數控制） |
-| 3 | `check_kktix_got_ticket` | 2515 | `False` | 有（但未覆蓋） |
-| 4 | `nodriver_fami_login` | 8194 | `True` | 有（行 8209-8210 覆蓋） |
-| 5 | `nodriver_fami_activity` | 8307 | `True` | 有（行 8323 覆蓋） |
-| 6 | `nodriver_fami_verify` | 8366 | `True` | 有（行 8385 覆蓋） |
-| 7 | `nodriver_fami_date_auto_select` | 8474 | `True` | 有（行 8491 覆蓋） |
-| 8 | `nodriver_fami_area_auto_select` | 8665 | `True` | 有（行 8682 覆蓋） |
-| 9 | `nodriver_fami_date_to_area` | 8819 | `True` | 有（行 8836 覆蓋） |
-| 10 | `nodriver_fami_ticket_select` | 8896 | `True` | 有（行 8915 覆蓋） |
-| 11 | `nodriver_fami_home_auto_select` | 9024 | `True` | 有（行 9040 覆蓋） |
+| # | 函數名 | 預設值 | 有 config_dict |
+|---|--------|--------|---------------|
+| 1 | `nodriver_check_checkbox_enhanced` | `False` | 無（純參數控制） |
+| 2 | `nodriver_kktix_check_ticket_page_status` | `False` | 無（純參數控制） |
+| 3 | `check_kktix_got_ticket` | `False` | 有（但未覆蓋） |
+| 4 | `nodriver_fami_login` | `True` | 有（會覆蓋） |
+| 5 | `nodriver_fami_activity` | `True` | 有（會覆蓋） |
+| 6 | `nodriver_fami_verify` | `True` | 有（會覆蓋） |
+| 7 | `nodriver_fami_date_auto_select` | `True` | 有（會覆蓋） |
+| 8 | `nodriver_fami_area_auto_select` | `True` | 有（會覆蓋） |
+| 9 | `nodriver_fami_date_to_area` | `True` | 有（會覆蓋） |
+| 10 | `nodriver_fami_ticket_select` | `True` | 有（會覆蓋） |
+| 11 | `nodriver_fami_home_auto_select` | `True` | 有（會覆蓋） |
 
 **分類**：
 - #1, #2：無 config_dict，純靠呼叫端傳參 → 改為接收 `config_dict` 或 `enabled`
@@ -136,21 +136,21 @@ if show_debug_message and is_in_queue and force_show_debug:
 
 函數內部直接寫死 `show_debug_message = True/False`。
 
-| # | 函數名 | 行號 | 硬編碼值 | 設計意圖 | 轉換方式 |
-|---|--------|------|----------|----------|----------|
-| 1 | `nodriver_cloudflare_challenge` | 394 | `False` | auto 模式靜默 | 見模式 5-A |
-| 2 | `nodriver_tixcraft_get_ocr_answer` | 5700 | `False` | OCR 靜默（效能考量） | `enabled=False` |
-| 3 | `nodriver_kham_login` | 15020 | `True` | 開發中永遠開啟 | `config_dict` |
-| 4 | `nodriver_hkticketing_login` | 21417 | `True` | 開發中永遠開啟 | `config_dict` |
-| 5 | `nodriver_hkticketing_date_buy_button_press` | 21589 | `False` → config | 已正確讀取 config | 直接替換 |
-| 6 | `nodriver_hkticketing_ticket_delivery_option` | 22262 | `False` → config | 已正確讀取 config | 直接替換 |
-| 7 | `nodriver_hkticketing_next_button_press` | 22306 | `False` → config | 已正確讀取 config | 直接替換 |
-| 8 | `nodriver_hkticketing_go_to_payment` | 22383 | `False` → config | 已正確讀取 config | 直接替換 |
-| 9 | `nodriver_hkticketing_type02_clear_session` | 22465 | `False` → config | 已正確讀取 config | 直接替換 |
-| 10 | `nodriver_hkticketing_traffic_overload` | 22531 | `False` → config | 已正確讀取 config | 直接替換 |
-| 11 | `nodriver_hkticketing_dismiss_modal` | 22756 | `False` → config | 已正確讀取 config | 直接替換 |
-| 12 | `nodriver_hkticketing_buy_button` | 22811 | `False` → config | 已正確讀取 config | 直接替換 |
-| 13 | `nodriver_hkticketing_type02_next_step` | 23347 | `False` → config | 已正確讀取 config | 直接替換 |
+| # | 函數名 | 硬編碼值 | 設計意圖 | 轉換方式 |
+|---|--------|----------|----------|----------|
+| 1 | `nodriver_cloudflare_challenge` | `False` | auto 模式靜默 | 見模式 5-A |
+| 2 | `nodriver_tixcraft_get_ocr_answer` | `False` | OCR 靜默（效能考量） | `enabled=False` |
+| 3 | `nodriver_kham_login` | `True` | 開發中永遠開啟 | `config_dict` |
+| 4 | `nodriver_hkticketing_login` | `True` | 開發中永遠開啟 | `config_dict` |
+| 5 | `nodriver_hkticketing_date_buy_button_press` | `False` → config | 已正確讀取 config | 直接替換 |
+| 6 | `nodriver_hkticketing_ticket_delivery_option` | `False` → config | 已正確讀取 config | 直接替換 |
+| 7 | `nodriver_hkticketing_next_button_press` | `False` → config | 已正確讀取 config | 直接替換 |
+| 8 | `nodriver_hkticketing_go_to_payment` | `False` → config | 已正確讀取 config | 直接替換 |
+| 9 | `nodriver_hkticketing_type02_clear_session` | `False` → config | 已正確讀取 config | 直接替換 |
+| 10 | `nodriver_hkticketing_traffic_overload` | `False` → config | 已正確讀取 config | 直接替換 |
+| 11 | `nodriver_hkticketing_dismiss_modal` | `False` → config | 已正確讀取 config | 直接替換 |
+| 12 | `nodriver_hkticketing_buy_button` | `False` → config | 已正確讀取 config | 直接替換 |
+| 13 | `nodriver_hkticketing_type02_next_step` | `False` → config | 已正確讀取 config | 直接替換 |
 
 **分類**：
 - #2：刻意靜默（OCR 高頻呼叫）→ 保持 `enabled=False`
@@ -181,7 +181,7 @@ if show_debug_message and is_in_queue and force_show_debug:
 
 ### 3.1 DebugLogger 類
 
-**位置**：`src/util.py`，在 `get_debug_mode()` 函數之後（約 1298 行）
+**位置**：`src/util.py`，在 `get_debug_mode()` 函數之後
 
 ```python
 class DebugLogger:
@@ -370,7 +370,7 @@ def guess_answer_list_from_multi_options(tmp_text, config_dict=None):
     debug.log("matched pattern:", matched_pattern)
 ```
 
-**特殊：`get_matched_blocks_by_keyword_item_set`（行 1150）**
+**特殊：`get_matched_blocks_by_keyword_item_set`（`src/util.py`）**
 
 ```python
 # 替換前（已有 config_dict，有 3 行賦值邏輯）
@@ -453,7 +453,7 @@ async def nodriver_hkticketing_date_buy_button_press(tab, config_dict=None):
 **4.9b 永遠開啟（2 處：kham_login, hkticketing_login）— 改用 config**
 
 ```python
-# 替換前（kham_login, 行 15020）
+# 替換前（nodriver_kham_login）
 async def nodriver_kham_login(tab, account, password, ocr=None):
     show_debug_message = True    # 永遠開啟，無 config
 
@@ -467,7 +467,7 @@ async def nodriver_kham_login(tab, account, password, config_dict=None, ocr=None
 **4.9c 刻意靜默（1 處：OCR）— 保持 enabled=False**
 
 ```python
-# 替換前（nodriver_tixcraft_get_ocr_answer, 行 5700）
+# 替換前（nodriver_tixcraft_get_ocr_answer）
 async def nodriver_tixcraft_get_ocr_answer(...):
     show_debug_message = False    # OCR 高頻呼叫，永遠靜默
 
@@ -479,7 +479,7 @@ async def nodriver_tixcraft_get_ocr_answer(...):
 ### 4.10 show_debug 變數名差異（2 函數）
 
 ```python
-# 替換前（detect_cloudflare_challenge, 行 330）
+# 替換前（detect_cloudflare_challenge）
 async def detect_cloudflare_challenge(tab, show_debug=False):
     if show_debug:
         print(f"Cloudflare detection error: {exc}")
@@ -503,23 +503,23 @@ async def detect_cloudflare_challenge(tab, show_debug=False):
 
 ### 5.2 util.py 需改造的函數（含呼叫鏈分析）
 
-| 函數名 | 行號 | 改動 | 呼叫端 | 風險 |
-|--------|------|------|--------|------|
-| `guess_answer_list_from_multi_options` | 514 | 加 `config_dict` | util 內部 1 處 | 低 |
-| `get_offical_hint_string_from_symbol` | 722 | 加 `config_dict` | util 內部 2 處 | 低 |
-| `guess_answer_list_from_hint` | 764 | 加 `config_dict` | util 內部 2 處 | 低 |
-| `get_answer_list_by_question` | 1089 | 加 `config_dict` | util 內部 1 處 | 中 |
-| `get_matched_blocks_by_keyword_item_set` | 1150 | **已有 config_dict** | 不需動 | 無 |
-| `guess_tixcraft_question` | 1389 | 加 `config_dict` | nodriver 1 處（有 config） | 低 |
-| `kktix_get_web_datetime` | 1559 | 加 `config_dict` | util 內部 2 處 | 低 |
-| `get_answer_string_from_web_date` | 1616 | 加 `config_dict` | util 內部 1 處 | 中 |
+| 函數名 | 改動 | 呼叫端 | 風險 |
+|--------|------|--------|------|
+| `guess_answer_list_from_multi_options` | 加 `config_dict` | util 內部 1 處 | 低 |
+| `get_offical_hint_string_from_symbol` | 加 `config_dict` | util 內部 2 處 | 低 |
+| `guess_answer_list_from_hint` | 加 `config_dict` | util 內部 2 處 | 低 |
+| `get_answer_list_by_question` | 加 `config_dict` | util 內部 1 處 | 中 |
+| `get_matched_blocks_by_keyword_item_set` | **已有 config_dict** | 不需動 | 無 |
+| `guess_tixcraft_question` | 加 `config_dict` | nodriver 1 處（有 config） | 低 |
+| `kktix_get_web_datetime` | 加 `config_dict` | util 內部 2 處 | 低 |
+| `get_answer_string_from_web_date` | 加 `config_dict` | util 內部 1 處 | 中 |
 
 ### 5.3 額外需修改的函數（呼叫鏈分析發現）
 
-| 函數名 | 行號 | 原因 | 風險 |
-|--------|------|------|------|
-| `get_answer_list_from_question_string` | ~1833 | **核心樞紐**：被多個外部函數呼叫，需加 `config_dict` | 中 |
-| `get_answer_string_from_web_time` | ~1746 | 與 `get_answer_string_from_web_date` 對稱 | 低 |
+| 函數名 | 原因 | 風險 |
+|--------|------|------|
+| `get_answer_list_from_question_string` | **核心樞紐**：被多個外部函數呼叫，需加 `config_dict` | 中 |
+| `get_answer_string_from_web_time` | 與 `get_answer_string_from_web_date` 對稱 | 低 |
 
 ### 5.4 呼叫鏈圖
 
@@ -579,8 +579,8 @@ nodriver_tixcraft_input_       ----->  guess_tixcraft_question()
 
 | 變數 | 位置 | 原因 |
 |------|------|------|
-| `CLOUDFLARE_BYPASS_MODE` | 行 80 | 模組級常數，控制 Cloudflare 策略 |
-| `mcp_debug_enabled` | 行 21061 | MCP 專屬開關，不走 verbose |
+| `CLOUDFLARE_BYPASS_MODE` | `src/nodriver_common.py` | 模組級常數，控制 Cloudflare 策略 |
+| `mcp_debug_enabled` | `src/nodriver_common.py` | MCP 專屬開關，不走 verbose |
 
 ### 6.5 非標準 print 參數
 

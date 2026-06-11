@@ -2,8 +2,8 @@
 文件說明：詳細說明 settings.json 在圖形介面中顯示的各項設定欄位
 分類：Configuration Reference (level: 2)
 目標受眾：一般使用者
-版本：1.7
-最後更新：2026-02-03
+版本：1.8
+最後更新：2026-06-10
 -->
 
 # settings.json 詳細設定說明
@@ -77,6 +77,8 @@ python settings.py
 選填 | 類型：字串 | 預設：chrome
 
 指定使用的瀏覽器。
+
+**注意**：圖形介面無此欄位，僅能直接編輯 settings.json 調整。
 
 
 **可選值**：
@@ -156,7 +158,7 @@ python settings.py
 
 是否啟用日期自動選擇功能。
 
-在圖形介面中顯示為：**日期自動點選** (啟用/停用開關)
+**注意**：圖形介面無此開關，僅能直接編輯 settings.json 的 `date_auto_select.enable` 調整。
 
 **說明**：
 - 開啟 - 自動選擇日期
@@ -276,7 +278,7 @@ python settings.py
 
 是否啟用區域自動選擇功能。
 
-在圖形介面中顯示為：**區域自動點選** (啟用/停用開關)
+**注意**：圖形介面無此開關，僅能直接編輯 settings.json 的 `area_auto_select.enable` 調整。
 
 
 ---
@@ -434,6 +436,8 @@ python settings.py
 
 是否使用 beta OCR 模型。
 
+**注意**：圖形介面無此欄位，僅能直接編輯 settings.json 調整。
+
 
 **說明**：
 - 啟用 - 使用 beta 模型
@@ -518,6 +522,8 @@ python settings.py
 
 是否自動跳過已售完的日期。
 
+**注意**：圖形介面無此欄位，僅能直接編輯 settings.json 調整。
+
 
 **說明**：
 - 啟用 - 自動過濾售完日期
@@ -529,6 +535,8 @@ python settings.py
 類型：布林值 | 預設：啟用
 
 遇到「即將開賣」頁面時是否自動重載。
+
+**注意**：圖形介面無此欄位，僅能直接編輯 settings.json 調整。
 
 
 **說明**：
@@ -569,6 +577,8 @@ python settings.py
 類型：布林值 | 預設：啟用
 
 是否自動填寫票數（KKTIX 價格清單式票種）。
+
+**注意**：圖形介面無此欄位，僅能直接編輯 settings.json 調整。
 
 
 ---
@@ -1180,6 +1190,7 @@ iBon 的 Cookie qware，用於快速登入。
 - 明文密碼有安全風險，建議使用 Cookie 登入
 - 密碼會以明文儲存在 settings.json
 - 圖形介面會顯示警告：`將密碼保存到設定檔中可能會讓您的密碼被盜。`
+- `cityline_password` 目前圖形介面無對應欄位，僅能直接編輯 settings.json
 
 **⚠️ UDN 登入是半自動的**：
 - 程式會自動填寫帳號密碼

@@ -351,6 +351,11 @@ async def nodrver_block_urls(tab, config_dict):
         # are excluded below to avoid server-side bot detection via missing beacons
         '*.appier.net/*',
         '*.c.appier.net/*',
+        # Appier-owned QGraph/AIQUA marketing automation (push, in-web campaigns, behavior tracking)
+        # quantumgraph.com / qgr.ph = QGraph (acquired by Appier 2018, renamed AIQUA); aiqua.io = AIQUA web SDK
+        '*api.quantumgraph.com/*',
+        '*cdn.qgr.ph/*',
+        '*.aiqua.io/*',
         '*.cloudfront.com/*',
         '*.doubleclick.net/*',  # Covers securepubads.g.doubleclick.net
         '*.lndata.com/*',
@@ -414,10 +419,15 @@ async def nodrver_block_urls(tab, config_dict):
         '*geolocation.onetrust.com/*',
     ]
 
-    # Block Clarity for non-TicketPlus platforms only
-    # TicketPlus server-side detection requires real Clarity beacons; blocking causes honeypot session data
+    # Block session-recording trackers for non-TicketPlus platforms only.
+    # These tools (Clarity, Hotjar) record mouse trails / clicks / scroll heatmaps,
+    # which can fingerprint automated cursor behavior. TicketPlus is excluded because
+    # its server-side detection requires real Clarity beacons (blocking yields honeypot data).
+    # KKTIX loads both Clarity and Hotjar (see anti-detection-audit T8).
     if not is_ticketplus:
         NETWORK_BLOCKED_URLS.append('*.clarity.ms/*')
+        NETWORK_BLOCKED_URLS.append('*.hotjar.com/*')
+        NETWORK_BLOCKED_URLS.append('*.hotjar.io/*')
 
     if config_dict["advanced"]["hide_some_image"]:
         NETWORK_BLOCKED_URLS.append('*.woff')

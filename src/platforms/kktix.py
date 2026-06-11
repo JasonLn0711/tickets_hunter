@@ -55,6 +55,49 @@ __all__ = [
 _state = {}
 
 
+async def nodriver_kktix_check_queue_page(tab, config_dict):
+    """Detect KKTIX waiting room page (queue shown before site entry).
+
+    Markers from .temp/platform/kktix/kkwaiting.html: #cf-time countdown
+    and the "high traffic" heading. The page refreshes itself and warns
+    against manual refresh, so callers must NOT reload while queueing.
+
+    Returns:
+        bool: True if currently on the queue page
+    """
+    debug = util.create_debug_logger(config_dict)
+
+    is_queue_page = False
+    wait_text = ""
+    try:
+        result = await tab.evaluate('''
+            (function() {
+                const cfTime = document.querySelector('#cf-time');
+                if (cfTime) {
+                    return { isQueue: true, waitText: cfTime.textContent.trim() };
+                }
+                const heading = document.querySelector('main h1');
+                if (heading && heading.textContent.indexOf('目前網站人流眾多') >= 0) {
+                    return { isQueue: true, waitText: '' };
+                }
+                return { isQueue: false, waitText: '' };
+            })()
+        ''')
+        if isinstance(result, dict):
+            is_queue_page = bool(result.get('isQueue', False))
+            wait_text = result.get('waitText', '')
+    except Exception:
+        pass
+
+    if is_queue_page:
+        current_time = time.time()
+        if current_time - _state.get("queue_log_time", 0) > 10:
+            _state["queue_log_time"] = current_time
+            debug.log(f"[KKTIX QUEUE] In waiting room, page auto-refreshes, do not reload. {wait_text}".rstrip())
+
+    return is_queue_page
+
+
 async def nodriver_kktix_signin(tab, url, config_dict):
     # 函數開始時檢查暫停
     if await check_and_handle_pause(config_dict):
@@ -73,6 +116,10 @@ async def nodriver_kktix_signin(tab, url, config_dict):
             target_url = params['back_to'][0]
     except Exception as exc:
         debug.log(f"[KKTIX SIGNIN] Failed to parse back_to parameter: {exc}")
+
+    # Queue page may replace the login form entirely; wait it out
+    if await nodriver_kktix_check_queue_page(tab, config_dict):
+        return False
 
     await asyncio.sleep(random.uniform(0.2, 0.5))
 
@@ -132,8 +179,12 @@ async def nodriver_kktix_signin(tab, url, config_dict):
             try:
                 current_url = await tab.evaluate('window.location.href')
                 if current_url and ('kktix.com/' in current_url or 'kktix.cc/' in current_url):
-                    # If on homepage or user page, manually redirect to back_to URL
-                    if (current_url.endswith('/') or '/users/' in current_url) and target_url != current_url:
+                    if '/users/sign_in' in current_url:
+                        # Still on sign_in page (login failed or queue intercepted);
+                        # jumping to back_to here would enter the event as a guest
+                        debug.log("[KKTIX SIGNIN] Still on sign_in page, will retry on next loop")
+                    elif (current_url.endswith('/') or '/users/' in current_url) and target_url != current_url:
+                        # If on homepage or user page, manually redirect to back_to URL
                         debug.log(f"[KKTIX SIGNIN] Currently on homepage/user page, redirecting to: {target_url}")
                         await tab.get(target_url)
                         await asyncio.sleep(random.uniform(1.2, 2.3))
@@ -148,6 +199,47 @@ async def nodriver_kktix_signin(tab, url, config_dict):
             pass
 
     return has_redirected
+
+async def nodriver_kktix_redirect_to_signin_if_guest(tab, url, config_dict):
+    """Stage 2: detect guest session on registration page, bounce to sign_in.
+
+    The KKTIX queue can drop users on /registrations/new before login; ticket
+    rows then render without input fields and keyword matching never succeeds.
+    Navbar marker: li.not-signed-in loses the .hidden class for guests
+    (verified across .temp/platform/kktix/*.html snapshots).
+
+    Returns:
+        bool: True if guest session detected (caller should skip this round)
+    """
+    if len(config_dict["accounts"]["kktix_account"]) <= 4:
+        return False
+
+    debug = util.create_debug_logger(config_dict)
+
+    is_guest = False
+    try:
+        is_guest = bool(await tab.evaluate(
+            "!!document.querySelector('li.not-signed-in:not(.hidden)')"
+        ))
+    except Exception:
+        pass
+    if not is_guest:
+        return False
+
+    current_time = time.time()
+    redirect_interval = config_dict["advanced"].get("auto_reload_page_interval", 3)
+    if redirect_interval <= 0:
+        redirect_interval = 3
+    if current_time - _state.get("last_signin_redirect_time", 0) > redirect_interval:
+        _state["last_signin_redirect_time"] = current_time
+        sign_in_url = "https://kktix.com/users/sign_in?back_to=" + urllib.parse.quote(url, safe='')
+        debug.log("[KKTIX] Guest session on registration page, redirecting to sign_in")
+        try:
+            await tab.get(sign_in_url)
+        except Exception as exc:
+            debug.log(f"[KKTIX] Redirect to sign_in failed: {exc}")
+
+    return True
 
 async def nodriver_kktix_paused_main(tab, url, config_dict):
     debug = util.create_debug_logger(config_dict)
@@ -177,11 +269,36 @@ async def nodriver_kktix_travel_price_list(tab, config_dict, kktix_area_auto_sel
 
     ticket_price_list = None
     try:
-        # 舊版優先
-        ticket_price_list = await tab.query_selector_all('div.display-table-row')
-        # 若舊版找不到，使用新版選擇器
-        if not ticket_price_list or len(ticket_price_list) == 0:
-            ticket_price_list = await tab.query_selector_all('div.ticket-item')
+        ticket_price_list = await tab.evaluate('''
+            (function() {
+                let rows = Array.from(document.querySelectorAll('div.display-table-row'));
+                if (rows.length === 0) {
+                    rows = Array.from(document.querySelectorAll('div.ticket-item'));
+                }
+
+                let inputIndex = 0;
+                return rows.map((row, rowIndex) => {
+                    const input = row.querySelector('input');
+                    const hasInput = !!input;
+                    const rowInputIndex = hasInput ? inputIndex : null;
+                    if (hasInput) {
+                        inputIndex += 1;
+                    }
+
+                    return {
+                        index: rowIndex,
+                        html: row.innerHTML || "",
+                        text: row.textContent || row.innerText || "",
+                        hasInput: hasInput,
+                        inputValue: input ? input.value : "0",
+                        inputIndex: rowInputIndex
+                    };
+                });
+            })()
+        ''')
+        ticket_price_list = util.parse_nodriver_result(ticket_price_list)
+        if not isinstance(ticket_price_list, list):
+            ticket_price_list = None
     except Exception as exc:
         ticket_price_list = None
         debug.log(f"[KKTIX] find ticket-price Exception: {exc}")
@@ -191,7 +308,6 @@ async def nodriver_kktix_travel_price_list(tab, config_dict, kktix_area_auto_sel
     price_list_count = 0
     if not ticket_price_list is None:
         price_list_count = len(ticket_price_list)
-        debug.log("found price count:", price_list_count)
     else:
         is_dom_ready = False
         debug.log("[KKTIX] find ticket-price fail")
@@ -199,7 +315,6 @@ async def nodriver_kktix_travel_price_list(tab, config_dict, kktix_area_auto_sel
     if price_list_count > 0:
         areas = []
         pending_tickets = []  # Track matched tickets waiting for "not yet open" to open
-        input_index = 0  # Track valid input index
 
         # Parse area keywords (space-separated = AND logic)
         # Support N keywords (previously limited to 2)
@@ -209,43 +324,19 @@ async def nodriver_kktix_travel_price_list(tab, config_dict, kktix_area_auto_sel
 
         debug.log(f'[KKTIX AREA] Keywords (AND logic): {kktix_area_keyword_array}')
 
-        for i, row in enumerate(ticket_price_list):
+        for i, ticket_info in enumerate(ticket_price_list):
             row_text = ""
-            row_html = ""
+            original_text = ""
+            row_html = ticket_info.get('html', '') if isinstance(ticket_info, dict) else ""
             row_input = None
             current_ticket_number = "0"
             try:
-                # 使用 JavaScript 一次取得所有資料，避免使用元素物件方法
-                result = await tab.evaluate(f'''
-                    (function() {{
-                        // 舊版優先
-                        let rows = document.querySelectorAll('div.display-table-row');
-                        // 若舊版找不到，使用新版選擇器
-                        if (rows.length === 0) {{
-                            rows = document.querySelectorAll('div.ticket-item');
-                        }}
-                        if (rows[{i}]) {{
-                            const row = rows[{i}];
-                            const input = row.querySelector('input');
-                            return {{
-                                html: row.innerHTML,
-                                text: row.textContent || row.innerText || "",
-                                hasInput: !!input,
-                                inputValue: input ? input.value : "0"
-                            }};
-                        }}
-                        return {{ html: "", text: "", hasInput: false, inputValue: "0" }};
-                    }})();
-                ''')
-
-                # 使用統一解析函數處理返回值
-                result = util.parse_nodriver_result(result)
-                if result:
-                    row_html = result.get('html', '')
-                    row_text = util.remove_html_tags(row_html)
-                    current_ticket_number = result.get('inputValue', '0')
-                    if result.get('hasInput'):
-                        row_input = input_index  # 儲存有效 input 的索引
+                if ticket_info:
+                    row_text = ticket_info.get('text', '') or util.remove_html_tags(row_html)
+                    original_text = ' '.join(row_text.split())
+                    current_ticket_number = ticket_info.get('inputValue', '0')
+                    if ticket_info.get('hasInput'):
+                        row_input = ticket_info.get('inputIndex')  # 儲存有效 input 的索引
             except Exception as exc:
                 is_dom_ready = False
                 debug.log(f"Error in nodriver_kktix_travel_price_list: {exc}")
@@ -276,7 +367,7 @@ async def nodriver_kktix_travel_price_list(tab, config_dict, kktix_area_auto_sel
                     debug.log(f"  -> Preserved ticket with 'not yet open' status for keyword matching")
 
                 # Filter tickets without input field, EXCEPT "not yet open" tickets
-                if len(row_text) > 0 and not('<input type=' in row_html):
+                if len(row_text) > 0 and row_input is None:
                     if not has_not_yet_open_status:
                         row_text = ""
                         debug.log(f"  -> Filtered: no input field and not 'not yet open'")
@@ -297,6 +388,7 @@ async def nodriver_kktix_travel_price_list(tab, config_dict, kktix_area_auto_sel
                     # 剩 n 張票 / n Left / 残り n 枚
                     ticket_count = 999
                     # for cht.
+                    tmp_ticket_count = ""
                     if ' danger' in row_html and '剩' in row_text and '張' in row_text:
                         tmp_array = row_html.split('剩')
                         tmp_array = tmp_array[1].split('張')
@@ -346,35 +438,24 @@ async def nodriver_kktix_travel_price_list(tab, config_dict, kktix_area_auto_sel
                     # Check if all keywords match (AND logic)
                     is_match_area = all(kw in row_text for kw in kktix_area_keyword_array)
 
-                if debug.enabled:
-                    original_text = util.remove_html_tags(result.get('html', '')) if result else ""
-                    original_text = ' '.join(original_text.split())  # Remove extra whitespace and newlines
-                    debug.log(f"[KKTIX] Ticket index {i}: {original_text[:60]}")
-                    debug.log(f"  -> Keyword match: {is_match_area}")
-
                 # Handle matched tickets based on input field availability
                 if is_match_area:
                     if row_input is not None:
                         # Has input field (purchasable) - add to selection list
                         areas.append(row_input)
-                        debug.log(f"  -> Matched and added to selection list (input index: {row_input})")
+                        debug.log(f"[KKTIX AREA] Matched ticket: {original_text[:80]}")
 
                         # From top to bottom mode: match first then break
                         if kktix_area_auto_select_mode == CONST_FROM_TOP_TO_BOTTOM:
-                            debug.log(f"[KKTIX AREA] Mode is '{kktix_area_auto_select_mode}', stopping at first match")
                             break
                     else:
                         # No input field (not yet open) - track as pending
                         pending_tickets.append({
                             'index': i,
-                            'text': original_text[:60] if debug.enabled else row_text[:60],
+                            'text': original_text[:60],
                             'keywords': kktix_area_keyword_array
                         })
-                        debug.log(f"  -> Matched but waiting for ticket to open (keywords: {', '.join(kktix_area_keyword_array)})")
-
-            # Increment input index if this row has an input field
-            if row_input is not None:
-                input_index += 1
+                        debug.log(f"[KKTIX AREA] Matched ticket is waiting to open: {original_text[:80]}")
 
             if not is_dom_ready:
                 # DOM not ready, break the loop
@@ -383,35 +464,22 @@ async def nodriver_kktix_travel_price_list(tab, config_dict, kktix_area_auto_sel
         debug.log("[KKTIX] No price list found")
         pass
 
-    # Match result summary
+    # Keep area diagnostics concise. Detailed row logs already show the reason
+    # for each candidate; repeated summary counters make refresh loops noisy.
     if debug.enabled:
-        total_checked = len(ticket_price_list) if ticket_price_list else 0
         total_matched_with_input = len(areas) if areas else 0
         total_matched_pending = len(pending_tickets) if pending_tickets else 0
         total_matched_all = total_matched_with_input + total_matched_pending
 
-        debug.log(f"[KKTIX AREA] ========================================")
-        debug.log(f"[KKTIX AREA] Match Summary:")
-        debug.log(f"[KKTIX AREA]   Total ticket types checked: {total_checked}")
-        debug.log(f"[KKTIX AREA]   Tickets matched (with input): {total_matched_with_input}")
-        debug.log(f"[KKTIX AREA]   Tickets matched (waiting for open): {total_matched_pending}")
-
         if total_matched_pending > 0:
-            debug.log(f"[KKTIX AREA]")
-            debug.log(f"[KKTIX AREA]   Waiting for these tickets to open:")
+            debug.log(f"[KKTIX AREA] Waiting for matched tickets to open:")
             for pending in pending_tickets[:5]:  # Show max 5 pending tickets
                 keywords_str = ', '.join(pending['keywords'])
-                debug.log(f"[KKTIX AREA]     - {pending['text']} (keywords: {keywords_str})")
+                debug.log(f"[KKTIX AREA]   - {pending['text']} (keywords: {keywords_str})")
             if total_matched_pending > 5:
-                debug.log(f"[KKTIX AREA]     ... and {total_matched_pending - 5} more")
-
-        if total_checked > 0 and total_matched_all > 0:
-            match_rate = total_matched_all / total_checked * 100
-            debug.log(f"[KKTIX AREA]   Overall match rate: {match_rate:.1f}%")
+                debug.log(f"[KKTIX AREA]   ... and {total_matched_pending - 5} more")
         elif total_matched_all == 0:
-            debug.log(f"[KKTIX AREA]   No ticket types matched")
-
-        debug.log(f"[KKTIX AREA] ========================================")
+            debug.log(f"[KKTIX AREA] No ticket types matched")
 
     # Check pause after traversal
     if await check_and_handle_pause(config_dict):
@@ -449,16 +517,7 @@ async def nodriver_kktix_assign_ticket_number(tab, config_dict, kktix_area_keywo
                 debug.log("matched_blocks is empty, is_need_refresh")
 
     if not target_area is None:
-        # 顯示選中目標訊息
-        if debug.enabled:
-            try:
-                debug.log(f"[KKTIX AREA] Auto-select mode: {auto_select_mode}")
-                debug.log(f"[KKTIX AREA] Selected target: #{target_area + 1}/{len(matched_blocks)}")
-            except:
-                debug.log(f"[KKTIX AREA] Auto-select mode: {auto_select_mode}")
-
         current_ticket_number = ""
-        debug.log("try to set input box value.")
 
         try:
             # target_area 現在是索引，直接使用
@@ -967,18 +1026,8 @@ async def nodriver_kktix_date_auto_select(tab, config_dict):
             # On error, use mode selection
             matched_blocks = []
 
-    # Match result summary
-    if debug.enabled:
-        debug.log(f"[KKTIX DATE KEYWORD] ========================================")
-        debug.log(f"[KKTIX DATE KEYWORD] Match Summary:")
-        debug.log(f"[KKTIX DATE KEYWORD]   Total sessions available: {len(formated_session_list)}")
-        debug.log(f"[KKTIX DATE KEYWORD]   Total sessions matched: {len(matched_blocks)}")
-        if matched_blocks and len(matched_blocks) > 0:
-            debug.log(f"[KKTIX DATE KEYWORD]   Match rate: {len(matched_blocks)/len(formated_session_list)*100:.1f}%")
-            debug.log(f"[KKTIX DATE KEYWORD] ========================================")
-        elif not matched_blocks or len(matched_blocks) == 0:
-            debug.log(f"[KKTIX DATE KEYWORD]   No sessions matched any keywords")
-            debug.log(f"[KKTIX DATE KEYWORD] ========================================")
+    if debug.enabled and (not matched_blocks or len(matched_blocks) == 0):
+        debug.log(f"[KKTIX DATE KEYWORD] No sessions matched any keywords")
 
     # T018-T020: NEW - Conditional fallback based on date_auto_fallback switch
     if matched_blocks is not None and len(matched_blocks) == 0 and date_keyword and len(formated_session_list) > 0:
@@ -998,15 +1047,7 @@ async def nodriver_kktix_date_auto_select(tab, config_dict):
     target_button = util.get_target_item_from_matched_list(matched_blocks, auto_select_mode)
 
     if debug.enabled:
-        if target_button and matched_blocks:
-            try:
-                target_index = matched_blocks.index(target_button) if target_button in matched_blocks else -1
-                debug.log(f"[KKTIX DATE SELECT] Auto-select mode: {auto_select_mode}")
-                debug.log(f"[KKTIX DATE SELECT] Selected target: #{target_index + 1}/{len(matched_blocks)}")
-            except:
-                debug.log(f"[KKTIX DATE SELECT] Auto-select mode: {auto_select_mode}")
-                debug.log(f"[KKTIX DATE SELECT] Target selected from {len(matched_blocks)} matched sessions")
-        elif not matched_blocks or len(matched_blocks) == 0:
+        if not matched_blocks or len(matched_blocks) == 0:
             debug.log(f"[KKTIX DATE SELECT] No target selected (matched_blocks is empty)")
 
     # Click selected button
@@ -1016,12 +1057,9 @@ async def nodriver_kktix_date_auto_select(tab, config_dict):
             debug.log("[KKTIX DATE SELECT] Clicking selected session button...")
             await target_button.click()
             is_date_clicked = True
-            debug.log(f"[KKTIX DATE SELECT] ========================================")
             debug.log(f"[KKTIX DATE SELECT] Session selection completed successfully")
-            debug.log(f"[KKTIX DATE SELECT] ========================================")
         except Exception as exc:
             debug.log(f"[KKTIX DATE SELECT] Click error: {exc}")
-            debug.log(f"[KKTIX DATE SELECT] ========================================")
 
     return is_date_clicked
 
@@ -1058,7 +1096,7 @@ async def nodriver_kktix_events_press_next_button(tab, config_dict=None):
         debug.log(f"[KKTIX] Error clicking events next button: {exc}")
         return False
 
-async def nodriver_kktix_check_guest_modal(tab, config_dict):
+async def nodriver_kktix_check_guest_modal(tab, config_dict, force_check=False):
     """
     Check and handle KKTIX guest modal (立刻成為 KKTIX 會員)
     Reference: .temp/kktix/kktix-qa-code.html Line 157-172
@@ -1073,6 +1111,13 @@ async def nodriver_kktix_check_guest_modal(tab, config_dict):
 
     # Track if we've already checked for guest modal (skip wait on subsequent checks)
     is_first_check = not _state.get("guest_modal_checked", False) if _state else True
+    current_time = time.time()
+    if _state and not force_check and not is_first_check:
+        last_check_time = _state.get("guest_modal_last_check_time", 0)
+        if current_time - last_check_time < 3:
+            return False
+    if _state:
+        _state["guest_modal_last_check_time"] = current_time
 
     try:
         # Only wait on first check (modal typically appears on initial page load)
@@ -1082,22 +1127,28 @@ async def nodriver_kktix_check_guest_modal(tab, config_dict):
                 _state["guest_modal_checked"] = True
 
         # Check if guest modal exists and is visible
-        modal_visible = await tab.evaluate('''
+        modal_state = await tab.evaluate('''
             (function() {
                 const modal = document.querySelector('#guestModal');
-                if (modal) {
-                    // Check if modal is actually visible
-                    const style = window.getComputedStyle(modal);
-                    const isVisible = style.display !== 'none' &&
-                                    style.visibility !== 'hidden' &&
-                                    parseFloat(style.opacity) > 0;
-                    return isVisible;
+                if (!modal) {
+                    return { status: 'missing' };
                 }
-                return false;
+                const style = window.getComputedStyle(modal);
+                const isVisible = style.display !== 'none' &&
+                                style.visibility !== 'hidden' &&
+                                parseFloat(style.opacity) > 0;
+                return {
+                    status: isVisible ? 'visible' : 'hidden',
+                    display: style.display,
+                    visibility: style.visibility,
+                    opacity: style.opacity
+                };
             })()
         ''')
+        modal_state = util.parse_nodriver_result(modal_state)
+        modal_status = modal_state.get('status', 'missing') if isinstance(modal_state, dict) else 'missing'
 
-        if modal_visible:
+        if modal_status == 'visible':
             debug.log("[KKTIX GUEST MODAL] Guest modal detected, clicking dismiss button...")
 
             # Click the dismiss button (暫時不要)
@@ -1121,7 +1172,12 @@ async def nodriver_kktix_check_guest_modal(tab, config_dict):
                 await asyncio.sleep(random.uniform(0.3, 0.5))
                 is_modal_handled = True
         else:
-            debug.log("[KKTIX GUEST MODAL] No guest modal detected")
+            if debug.enabled and _state and not _state.get("guest_modal_status_logged", False):
+                _state["guest_modal_status_logged"] = True
+                if modal_status == 'hidden':
+                    debug.log("[KKTIX GUEST MODAL] Guest modal exists but is hidden")
+                else:
+                    debug.log("[KKTIX GUEST MODAL] Guest modal not present")
 
     except Exception as exc:
         debug.log(f"[ERROR] Guest modal check failed: {exc}")
@@ -1585,7 +1641,7 @@ async def nodriver_kktix_reg_new_main(tab, config_dict, fail_list, played_sound_
                 if not is_question_popup:
                     # Check and dismiss guest modal again (in case it appears after captcha)
                     # This ensures modal doesn't block the next button
-                    await nodriver_kktix_check_guest_modal(tab, config_dict)
+                    await nodriver_kktix_check_guest_modal(tab, config_dict, force_check=True)
 
                     # no captcha text popup, goto next page.
                     control_text = await nodriver_get_text_by_selector(tab, 'div > div.code-input > div.control-group > label.control-label', 'innerText')
@@ -1919,6 +1975,9 @@ async def nodriver_kktix_main(tab, url, config_dict):
             "alert_handler_registered": False,
             "alert_needs_reload": False,
             "guest_modal_checked": False,
+            "guest_modal_last_check_time": 0,
+            "guest_modal_status_logged": False,
+            "last_ticket_already_selected_log_value": None,
             "printed_completed": False,
             "last_homepage_redirect_time": 0,
         })
@@ -1943,7 +2002,8 @@ async def nodriver_kktix_main(tab, url, config_dict):
         sold_out_alert_keywords = [
             "售完", "已售完", "售出", "已售出", "全部售出", "已全部售出", "sold out", "Sold Out",
             "別人搶先一步", "已無可配座位", "無可配座位",
-            "無票", "no ticket", "unavailable",
+            "無票", "目前沒有可以購買的票券", "沒有可以購買的票券", "目前沒有任何可以購買的票券",
+            "no ticket", "unavailable",
             "失敗", "錯誤", "error", "fail"
         ]
         is_sold_out_alert = any(kw in event.message.lower() for kw in [k.lower() for k in sold_out_alert_keywords])
@@ -2057,7 +2117,15 @@ async def nodriver_kktix_main(tab, url, config_dict):
             if not is_dom_ready:
                 _state["fail_list"] = []
                 _state["played_sound_ticket"] = False
+                # Waiting room keeps the registrations/new URL; it refreshes
+                # itself, so only emit a throttled status log here
+                await nodriver_kktix_check_queue_page(tab, config_dict)
             else:
+                # Queue may end with a guest session; tickets render without
+                # input fields then, so go log in before selecting anything
+                if await nodriver_kktix_redirect_to_signin_if_guest(tab, url, config_dict):
+                    return False
+
                 # 勾選同意條款 - 使用精確的 ID 選擇器
                 is_finish_checkbox_click = await nodriver_check_checkbox(tab, '#person_agree_terms:not(:checked)')
 
@@ -2124,8 +2192,15 @@ async def nodriver_kktix_main(tab, url, config_dict):
                     debug.log(f"[KKTIX CHECK ERROR] {exc}")
                     is_ticket_already_selected = False
 
-                # Debug: show ticket selection status
-                debug.log(f"[KKTIX CHECK] is_ticket_already_selected: {is_ticket_already_selected}")
+                # Log only when this state changes. While KKTIX is querying seats,
+                # the main loop can repeat many times with the same value.
+                if _state is not None:
+                    last_logged_value = _state.get("last_ticket_already_selected_log_value", None)
+                    if last_logged_value != is_ticket_already_selected:
+                        debug.log(f"[KKTIX CHECK] is_ticket_already_selected: {is_ticket_already_selected}")
+                        _state["last_ticket_already_selected_log_value"] = is_ticket_already_selected
+                else:
+                    debug.log(f"[KKTIX CHECK] is_ticket_already_selected: {is_ticket_already_selected}")
 
                 # check is able to buy (only if tickets not already selected)
                 if config_dict["kktix"]["auto_fill_ticket_number"] and not is_ticket_already_selected:

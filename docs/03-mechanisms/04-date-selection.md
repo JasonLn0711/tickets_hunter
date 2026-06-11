@@ -1,7 +1,7 @@
 # 機制 04：日期選擇 (Stage 4)
 
 **文件說明**：詳細說明搶票系統的日期選擇機制、關鍵字匹配與自動回退策略
-**最後更新**：2026-03-05
+**最後更新**：2026-06-10
 
 ---
 
@@ -65,7 +65,7 @@
 
 ### 1. Early Return Pattern（關鍵字優先匹配）
 
-**範例來源**：TixCraft (`nodriver_tixcraft.py:4685-4733`)
+**範例來源**：TixCraft（`src/platforms/tixcraft.py`，`nodriver_tixcraft_date_auto_select`）
 
 ```python
 # Feature 003: Early return pattern - iterate keywords in priority order
@@ -133,7 +133,7 @@ except Exception as e:
 
 ### 2. 條件回退機制（Feature 003）
 
-**範例來源**：TixCraft (`nodriver_tixcraft.py:4735-4755`)
+**範例來源**：TixCraft（`src/platforms/tixcraft.py`，`nodriver_tixcraft_date_auto_select`）
 
 ```python
 # T018-T020: NEW - Conditional fallback based on date_auto_fallback switch
@@ -210,7 +210,7 @@ keyword_array = util.parse_keyword_string_to_array(date_keyword)
 
 ### 4. Shadow DOM 穿透（iBon 專用）
 
-**範例來源**：iBon (`nodriver_tixcraft.py:9085-9415`)
+**範例來源**：iBon（`src/platforms/ibon.py`，`nodriver_ibon_date_auto_select` 系列）
 
 ```python
 async def nodriver_ibon_date_auto_select(tab, config_dict):
@@ -258,13 +258,13 @@ async def nodriver_ibon_date_auto_select(tab, config_dict):
 | **KHAM** | Table rows | ❌ 無 | 支援 3 域名變體 (kham/ticket/udn) | `nodriver_kham_date_auto_select()` | 100% ✅ |
 | **UDN** | Session blocks | ❌ 無 | 複用 KHAM 邏輯 (`div.yd_session-block`) | `nodriver_kham_date_auto_select()` | 100% ✅ |
 
-**程式碼位置**（`nodriver_tixcraft.py`）：
-- **TixCraft**: Line 4564 (`nodriver_tixcraft_date_auto_select`, 主要參考範例) ⭐
-- KKTIX: Line 1653 (`nodriver_kktix_date_auto_select`)
-- iBon: Line 9085 (`nodriver_ibon_date_auto_select_pierce`) / Line 9393 (`nodriver_ibon_date_auto_select`) / Line 9415 (`nodriver_ibon_date_auto_select_domsnapshot`)
-- TicketPlus: Line 6416 (`nodriver_ticketplus_date_auto_select`)
-- KHAM: Line 15045 (`nodriver_kham_date_auto_select`)
-- **UDN**: 複用 KHAM 邏輯，選擇器 `div.yd_session-block` (Line 15071)
+**程式碼位置**（`src/platforms/`）：
+- **TixCraft**: `tixcraft.py`（`nodriver_tixcraft_date_auto_select`, 主要參考範例）⭐
+- KKTIX: `kktix.py`（`nodriver_kktix_date_auto_select`）
+- iBon: `ibon.py`（`nodriver_ibon_date_auto_select_pierce` / `nodriver_ibon_date_auto_select` / `nodriver_ibon_date_auto_select_domsnapshot`）
+- TicketPlus: `ticketplus.py`（`nodriver_ticketplus_date_auto_select`）
+- KHAM: `kham.py`（`nodriver_kham_date_auto_select`）
+- **UDN**: 複用 KHAM 邏輯，選擇器 `div.yd_session-block`
 
 ---
 

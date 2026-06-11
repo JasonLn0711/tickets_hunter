@@ -1,7 +1,7 @@
 # KKTIX 平台參考實作
 
 **文件說明**：KKTIX 平台的完整實作參考，涵蓋問答式驗證碼、價格列表選擇、排隊機制等核心特性的技術實作與案例說明。
-**最後更新**：2025-12-02
+**最後更新**：2026-06-07
 
 ---
 
@@ -23,23 +23,22 @@
 
 | 階段 | 函數名稱 | 行數 | 說明 |
 |------|---------|------|------|
-| Main | `nodriver_kktix_main()` | 2652 | 主控制流程（URL 路由）|
-| Stage 2 | `nodriver_kktix_signin()` | 499 | 登入處理 |
-| Stage 3 | `nodriver_kktix_paused_main()` | 601 | 暫停/排隊頁面處理 |
-| Stage 4 | `nodriver_kktix_date_auto_select()` | 1528 | 日期自動選擇 |
-| Stage 5 | `nodriver_kktix_travel_price_list()` | 781 | 價格列表遍歷 |
-| Stage 5 | `nodriver_kktix_assign_ticket_number()` | 1058 | 區域選擇 + 票數輸入 |
-| Stage 7 | `nodriver_kktix_reg_captcha()` | 1211 | 問答式驗證碼處理 |
-| Stage 8 | `nodriver_kktix_reg_new_main()` | 2198 | 註冊頁面主處理 |
-| Stage 9 | `nodriver_kktix_check_guest_modal()` | 1831 | 訪客模式對話框 |
-| Stage 10 | `nodriver_kktix_press_next_button()` | 1906 | 下一步按鈕點擊 |
-| Stage 10 | `nodriver_kktix_events_press_next_button()` | 1799 | Events 頁面下一步 |
-| Stage 10 | `nodriver_kktix_confirm_order_button()` | 2917 | 確認訂單按鈕 |
-| Util | `nodriver_kktix_check_ticket_page_status()` | 2081 | 票券頁面狀態檢查 |
-| Util | `nodriver_kktix_double_check_all_text_value()` | 2952 | 表單值驗證 |
-| Util | `nodriver_kktix_order_member_code()` | 3049 | 會員代碼處理 |
+| Main | `nodriver_kktix_main()` | - | 主控制流程（URL 路由）|
+| Stage 2 | `nodriver_kktix_signin()` | - | 登入處理 |
+| Stage 3 | `nodriver_kktix_paused_main()` | - | 暫停/排隊頁面處理 |
+| Stage 4 | `nodriver_kktix_date_auto_select()` | - | 日期自動選擇 |
+| Stage 5 | `nodriver_kktix_travel_price_list()` | - | 批次擷取與配對價格列表 |
+| Stage 5 | `nodriver_kktix_assign_ticket_number()` | - | 區域選擇 + 票數輸入 |
+| Stage 7 | `nodriver_kktix_reg_captcha()` | - | 問答式驗證碼處理 |
+| Stage 8 | `nodriver_kktix_reg_new_main()` | - | 註冊頁面主處理 |
+| Stage 9 | `nodriver_kktix_check_guest_modal()` | - | 訪客模式對話框 |
+| Stage 10 | `nodriver_kktix_press_next_button()` | - | 下一步按鈕點擊 |
+| Stage 10 | `nodriver_kktix_events_press_next_button()` | - | Events 頁面下一步 |
+| Stage 10 | `nodriver_kktix_confirm_order_button()` | - | 確認訂單按鈕 |
+| Util | `nodriver_kktix_check_ticket_page_status()` | - | 票券頁面狀態檢查 |
+| Util | `nodriver_kktix_order_member_code()` | - | 會員代碼處理 |
 
-**程式碼位置**：`src/nodriver_tixcraft.py`
+**程式碼位置**：`src/platforms/kktix.py`
 
 ---
 
@@ -141,93 +140,60 @@ KKTIX 的區域選擇是**兩階段流程**：
 
 ### 解決方案
 
-**核心程式碼**（`nodriver_kktix_assign_ticket_number`, Line 1000-1168）:
+**核心程式碼**（`src/platforms/kktix.py`）:
 
 ```python
-async def nodriver_kktix_assign_ticket_number(tab, config_dict, is_fallback_selection=False):
-    """
-    兩階段區域選擇：
-    Stage 1: 關鍵字匹配票種
-    Stage 2: 輸入票數
-    """
-    ticket_number = config_dict["ticket_number"]
-    area_keyword = config_dict["area_auto_select"]["area_keyword"].strip()
-    show_debug_message = config_dict["advanced"].get("verbose", False)
+async def nodriver_kktix_travel_price_list(tab, config_dict, auto_select_mode, area_keyword):
+    # Stage 1: 一次擷取所有票種列，避免逐列 CDP/DOM 往返。
+    ticket_rows = await tab.evaluate("""
+        (function() {
+            let rows = Array.from(document.querySelectorAll('div.display-table-row'));
+            if (rows.length === 0) {
+                rows = Array.from(document.querySelectorAll('div.ticket-item'));
+            }
 
-    # ========== Stage 1: 查找所有票種區域 ==========
-    registrationsNewApp_div = await tab.query_selector('#registrationsNewApp')
-    ticket_areas = await registrationsNewApp_div.query_selector_all('div.display-table-row')
+            let inputIndex = 0;
+            return rows.map((row, rowIndex) => {
+                const input = row.querySelector('input');
+                const hasInput = !!input;
+                const rowInputIndex = hasInput ? inputIndex : null;
+                if (hasInput) inputIndex += 1;
 
-    if show_debug_message:
-        print(f"[KKTIX AREA] Found {len(ticket_areas)} ticket areas")
+                return {
+                    index: rowIndex,
+                    html: row.innerHTML || "",
+                    text: row.textContent || row.innerText || "",
+                    hasInput: hasInput,
+                    inputValue: input ? input.value : "0",
+                    inputIndex: rowInputIndex
+                };
+            });
+        })()
+    """)
 
-    # ========== Stage 2: 關鍵字匹配（與 TixCraft 類似邏輯）==========
-    matched_area = None
+    # Stage 2: Python 端依序做排除關鍵字、售完狀態、票數不足與 AND 關鍵字配對。
+    matched_input_indexes = []
+    for ticket in ticket_rows:
+        row_text = util.format_keyword_string(ticket["text"])
+        if util.reset_row_text_if_match_keyword_exclude(config_dict, row_text):
+            continue
+        if not all(kw in row_text for kw in area_keyword.split(" ") if kw.strip()):
+            continue
+        if ticket["hasInput"]:
+            matched_input_indexes.append(ticket["inputIndex"])
+            if auto_select_mode == CONST_FROM_TOP_TO_BOTTOM:
+                break
 
-    if area_keyword:
-        # Parse keywords
-        area_keyword_array = [kw.strip().strip('"').strip("'") for kw in area_keyword.split(',') if kw.strip()]
+    return matched_input_indexes
 
-        # Early Return Pattern
-        for keyword_index, area_keyword_item in enumerate(area_keyword_array):
-            if show_debug_message:
-                print(f"[KKTIX AREA] Checking keyword #{keyword_index + 1}: {area_keyword_item}")
-
-            for area in ticket_areas:
-                area_html = await area.get_html()
-                area_text = util.remove_html_tags(area_html)
-
-                # AND logic (space-separated)
-                keyword_parts = area_keyword_item.split(' ')
-                if all(kw in area_text for kw in keyword_parts):
-                    matched_area = area
-                    if show_debug_message:
-                        print(f"[KKTIX AREA] Keyword #{keyword_index + 1} matched: '{area_keyword_item}'")
-                    break  # ⭐ Early Return
-
-            if matched_area:
-                break  # ⭐ Early Return
-    else:
-        # No keyword - use first available area
-        matched_area = ticket_areas[0] if ticket_areas else None
-
-    # ========== Stage 3: 輸入票數到對應輸入框 ==========
-    if matched_area:
-        # Find input within matched area
-        ticket_number_str = str(ticket_number)
-
-        assign_result = await tab.evaluate(f'''
-            (function() {{
-                // Find the input within the matched area (ZenDriver Element reference)
-                const targetArea = arguments[0];  // Pass element reference
-                const targetInput = targetArea.querySelector('input[type="text"]');
-
-                if (!targetInput) {{
-                    return {{ success: false, error: "Input not found in area" }};
-                }}
-
-                const currentValue = targetInput.value;
-
-                if (currentValue === "0") {{
-                    targetInput.focus();
-                    targetInput.select();
-                    targetInput.value = "{ticket_number_str}";
-
-                    // Trigger events
-                    targetInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                    targetInput.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                    targetInput.dispatchEvent(new Event('blur', {{ bubbles: true }}));
-
-                    return {{ success: true, assigned: true, value: "{ticket_number_str}" }};
-                }} else {{
-                    return {{ success: true, assigned: false, value: currentValue, alreadySet: true }};
-                }}
-            }})();
-        ''', matched_area)  # ⭐ Pass element to JavaScript
-
-        # T013: Log selected area with selection type
-        selection_type = "fallback" if is_fallback_selection else "keyword match"
-        print(f"[KKTIX AREA SELECT] Selected ticket: {area_text[:50]}... ({selection_type})")
+async def nodriver_kktix_assign_ticket_number(tab, config_dict, area_keyword):
+    # Stage 3: 使用選中的 input index 填入票數，並觸發 Angular input/change/blur。
+    is_dom_ready, is_assigned, matched_blocks = await nodriver_kktix_travel_price_list(
+        tab,
+        config_dict,
+        config_dict["area_auto_select"]["mode"],
+        area_keyword,
+    )
 ```
 
 **設定範例**：
@@ -247,6 +213,7 @@ async def nodriver_kktix_assign_ticket_number(tab, config_dict, is_fallback_sele
 | 區域選擇方式 | 輸入票數到輸入框 | 點擊區域按鈕/連結 |
 | 票數設定 | Stage 5 同時處理 | Stage 6 獨立處理 |
 | 關鍵字目標 | 票種名稱（全票/VIP票） | 座位區域（搖滾區/A區） |
+| 候選資料取得 | 批次擷取票種列文字、HTML、input index | TixCraft 批次擷取區域文字與票數提示 |
 
 ---
 

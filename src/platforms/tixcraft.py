@@ -2469,6 +2469,11 @@ async def nodriver_tixcraft_ticket_main(tab, config_dict, ocr, Captcha_Browser, 
     allow_less_tickets = config_dict.get("tixcraft", {}).get("allow_less_tickets", False)
     ticket_state_key = f"ticket_assigned_{current_url}_{ticket_number}_{int(allow_less_tickets)}"
 
+    # Skip this iteration while a captcha submit is in flight (awaiting navigation).
+    if _state.get("captcha_submit_until", 0) > time.time():
+        debug.log("[TIXCRAFT OCR] Submit in progress, waiting for navigation")
+        return
+
     if ticket_state_key in _state and _state[ticket_state_key]:
         debug.log(f"Ticket number already set ({ticket_number}), skipping")
 
@@ -2585,32 +2590,57 @@ async def nodriver_tixcraft_keyin_captcha_code(tab, answer="", auto_submit=False
                         # 提交前確認票券數量是否已設定
                         ticket_number = str(config_dict.get("ticket_number", 2)) if config_dict else "2"
                         allow_less_tickets = config_dict.get("tixcraft", {}).get("allow_less_tickets", False) if config_dict else False
+                        # Issue #200/#201: some tixcraft events render multiple ticket
+                        # quantity selects; inspect every visible select, not just the first.
                         ticket_number_ok = await tab.evaluate(f'''
                             (function() {{
-                                const select = document.querySelector('.mobile-select') ||
-                                              document.querySelector('select[id*="TicketForm_ticketPrice_"]');
-                                if (!select || select.value === "0" || select.value === "") return false;
-                                const current = parseInt(select.value);
+                                if (window.location.href.includes('ticketmaster')) return true;
                                 const target = parseInt("{ticket_number}");
-                                if (isNaN(current) || isNaN(target)) return false;
-                                if ({str(bool(allow_less_tickets)).lower()}) {{
-                                    return current > 0 && current <= target;
-                                }}
-                                return current === target;
+                                const allowLess = {str(bool(allow_less_tickets)).lower()};
+                                const selects = Array.from(document.querySelectorAll(
+                                    '.mobile-select, select[id*="TicketForm_ticketPrice_"]'
+                                )).filter(s => s && !s.disabled);
+                                return selects.some(s => {{
+                                    if (s.value === "0" || s.value === "") return false;
+                                    const current = parseInt(s.value);
+                                    if (isNaN(current) || isNaN(target)) return false;
+                                    return allowLess ? (current > 0 && current <= target) : (current === target);
+                                }});
                             }})();
                         ''')
                         ticket_number_ok = util.parse_nodriver_result(ticket_number_ok)
 
                         if not ticket_number_ok and config_dict:
                             debug.log("[TIXCRAFT CAPTCHA] Warning: Ticket number not set, resetting...")
-                            # Reset ticket number
+                            # Reset ticket number across all selects. Honor allow_less_tickets:
+                            # when disabled only set the exact target option; otherwise fall back
+                            # to the largest option within (0, target] (leave untouched if none,
+                            # so Issue #174 reload retry can take over).
+                            ticket_number_js = json.dumps(ticket_number)
                             await tab.evaluate(f'''
                                 (function() {{
-                                    const select = document.querySelector('.mobile-select') ||
-                                                  document.querySelector('select[id*="TicketForm_ticketPrice_"]');
-                                    if (select) {{
-                                        select.value = "{ticket_number}";
-                                        select.dispatchEvent(new Event('change', {{bubbles: true}}));
+                                    const target = parseInt("{ticket_number}");
+                                    const allowLess = {str(bool(allow_less_tickets)).lower()};
+                                    const selects = Array.from(document.querySelectorAll(
+                                        '.mobile-select, select[id*="TicketForm_ticketPrice_"]'
+                                    )).filter(s => s && !s.disabled);
+                                    const pick = (s) => {{
+                                        let opt = Array.from(s.options).find(o =>
+                                            o.value === {ticket_number_js} && !o.disabled);
+                                        if (!opt && allowLess) {{
+                                            const cands = Array.from(s.options).filter(o =>
+                                                !o.disabled && parseInt(o.value) > 0 && parseInt(o.value) <= target);
+                                            opt = cands.sort((a, b) => parseInt(b.value) - parseInt(a.value))[0];
+                                        }}
+                                        return opt;
+                                    }};
+                                    for (const s of selects) {{
+                                        const opt = pick(s);
+                                        if (opt) {{
+                                            s.value = opt.value;
+                                            s.dispatchEvent(new Event('change', {{bubbles: true}}));
+                                            break;
+                                        }}
                                     }}
                                 }})();
                             ''')
@@ -2621,30 +2651,28 @@ async def nodriver_tixcraft_keyin_captcha_code(tab, answer="", auto_submit=False
                         # 最終確認所有欄位都已填寫
                         form_ready = await tab.evaluate(f'''
                             (function() {{
-                                const select = document.querySelector('.mobile-select') ||
-                                              document.querySelector('select[id*="TicketForm_ticketPrice_"]');
                                 const verify = document.querySelector('#TicketForm_verifyCode');
                                 const agree = document.querySelector('#TicketForm_agree');
 
                                 // Ticketmaster check-captcha page has no ticket selector
                                 // Ticket number is already set on previous page
                                 const isTicketmaster = window.location.href.includes('ticketmaster');
-                                let ticketOk = true;
-                                if (!isTicketmaster) {{
-                                    ticketOk = false;
-                                    if (select && select.value !== "0" && select.value !== "") {{
-                                        const current = parseInt(select.value);
-                                        const target = parseInt("{ticket_number}");
-                                        if (!isNaN(current) && !isNaN(target)) {{
-                                            ticketOk = {str(bool(allow_less_tickets)).lower()}
-                                                ? (current > 0 && current <= target)
-                                                : (current === target);
-                                        }}
-                                    }}
-                                }}
+                                const target = parseInt("{ticket_number}");
+                                const allowLess = {str(bool(allow_less_tickets)).lower()};
+                                const selects = Array.from(document.querySelectorAll(
+                                    '.mobile-select, select[id*="TicketForm_ticketPrice_"]'
+                                )).filter(s => s && !s.disabled);
+                                const matched = selects.find(s => {{
+                                    if (s.value === "0" || s.value === "") return false;
+                                    const current = parseInt(s.value);
+                                    if (isNaN(current) || isNaN(target)) return false;
+                                    return allowLess ? (current > 0 && current <= target) : (current === target);
+                                }});
+                                const ticketOk = isTicketmaster ? true : !!matched;
 
                                 return {{
                                     ticket: ticketOk,
+                                    ticket_select: matched ? (matched.id || matched.name || matched.className || "") : "",
                                     verify: verify && verify.value.length === 4,
                                     agree: agree && agree.checked,
                                     ready: ticketOk &&
@@ -2661,8 +2689,11 @@ async def nodriver_tixcraft_keyin_captcha_code(tab, answer="", auto_submit=False
                             await tab.send(cdp.input_.dispatch_key_event("keyUp", code="Enter", key="Enter", text="\r", windows_virtual_key_code=13))
                             is_verifyCode_editing = False
                             is_form_submitted = True
+                            # Short submit-in-progress guard: stop the main loop from
+                            # re-clicking the captcha input while navigation is pending.
+                            _state["captcha_submit_until"] = time.time() + 1.5
                         else:
-                            debug.log(f"[TIXCRAFT CAPTCHA] Form not ready - Ticket:{form_ready.get('ticket')} Captcha:{form_ready.get('verify')} Agreement:{form_ready.get('agree')}")
+                            debug.log(f"[TIXCRAFT CAPTCHA] Form not ready - Ticket:{form_ready.get('ticket')} Select:{form_ready.get('ticket_select')} Captcha:{form_ready.get('verify')} Agreement:{form_ready.get('agree')}")
                     else:
                         # 選取輸入框內容並顯示提示
                         await tab.evaluate('''
@@ -3074,6 +3105,8 @@ async def nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser):
 
         if is_captcha_error:
             _state["captcha_alert_detected"] = True
+            # Wrong answer submitted: clear the submit guard so retry is immediate.
+            _state["captcha_submit_until"] = 0
             debug.log(f"[GLOBAL ALERT] Captcha error detected, flagging for retry")
 
         # Issue #188: Detect sold out alerts to add cooldown delay
@@ -3121,6 +3154,7 @@ async def nodriver_tixcraft_main(tab, url, config_dict, ocr, Captcha_Browser):
             "played_sound_order": False,
             "alert_handler_registered": False,
             "captcha_alert_detected": False,
+            "captcha_submit_until": 0,
             "ocr_completed_url": "",
             "last_homepage_redirect_time": 0,
             "sold_out_cooldown_until": 0,

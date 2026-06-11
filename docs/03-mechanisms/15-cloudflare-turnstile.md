@@ -1,7 +1,7 @@
 # 機制 15：Cloudflare Turnstile 偵測與處理
 
 **文件說明**：說明搶票系統的 Cloudflare Turnstile 偵測機制與 CDP Shadow DOM 穿透點擊實作
-**最後更新**：2026-02-15
+**最後更新**：2026-06-10
 
 ---
 
@@ -103,10 +103,10 @@ cloudflare_checked == False?
 
 | 函數 | 位置 | 用途 |
 |------|------|------|
-| `detect_cloudflare_challenge()` | line 350 | 三層偵測 |
-| `_find_cf_iframe_in_dom()` | line 413 | DOM 樹遞迴搜尋 CF iframe |
-| `_cdp_click()` | line 446 | CDP 滑鼠事件封裝 |
-| `handle_cloudflare_challenge()` | line 459 | 三階段處理 |
+| `detect_cloudflare_challenge()` | `src/nodriver_common.py` | 三層偵測 |
+| `_find_cf_iframe_in_dom()` | `src/nodriver_common.py` | DOM 樹遞迴搜尋 CF iframe |
+| `_cdp_click()` | `src/nodriver_common.py` | CDP 滑鼠事件封裝 |
+| `handle_cloudflare_challenge()` | `src/nodriver_common.py` | 三階段處理 |
 
 ## 限制
 

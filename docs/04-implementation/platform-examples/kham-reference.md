@@ -1,7 +1,7 @@
 # 平台實作參考：KHAM
 
 **文件說明**：KHAM (寬宏售票) 平台的完整實作參考，涵蓋 ASP.NET 傳統架構、OCR 驗證碼、座位圖選擇、實名驗證等技術實作指南。
-**最後更新**：2025-12-02
+**最後更新**：2026-06-10
 
 ---
 
@@ -64,25 +64,25 @@
 
 | 階段 | 函數名稱 | 行數 | 說明 |
 |------|---------|------|------|
-| Main | `nodriver_kham_main()` | 17366 | 主控制流程（URL 路由）|
-| Stage 2 | `nodriver_kham_login()` | 15974 | 帳號登入（含 OCR）|
-| Stage 3 | `nodriver_kham_product()` | 16316 | 產品頁面處理 |
-| Stage 4 | `nodriver_kham_date_auto_select()` | 16336 | 日期自動選擇 |
-| Stage 5 | `nodriver_kham_area_auto_select()` | 16731 | 區域自動選擇 |
-| Stage 5 | `nodriver_kham_seat_type_auto_select()` | 18371 | 座位圖票種選擇 |
-| Stage 5 | `nodriver_kham_seat_auto_select()` | 18736 | 座位圖區域選擇 |
-| Stage 6 | `nodriver_kham_performance()` | 17277 | 票數設定頁面 |
-| Stage 7 | `nodriver_kham_captcha()` | 17233 | OCR 驗證碼處理 |
-| Stage 7 | `nodriver_kham_auto_ocr()` | 17156 | 自動 OCR 重試 |
-| Stage 7 | `nodriver_kham_keyin_captcha_code()` | 16623 | 驗證碼輸入 |
-| Stage 9 | `nodriver_kham_check_realname_dialog()` | 16161 | 實名驗證對話框 |
-| Stage 10 | `nodriver_kham_go_buy_redirect()` | 16126 | 點擊購買按鈕 |
-| Util | `nodriver_kham_allow_not_adjacent_seat()` | 16226 | 允許非相鄰座位 |
-| Util | `nodriver_kham_switch_to_auto_seat()` | 16244 | 切換系統選位 |
-| Util | `nodriver_kham_check_captcha_text_error()` | 16281 | 驗證碼錯誤檢測 |
-| Seat | `nodriver_kham_seat_main()` | 19101 | 座位圖主處理 |
+| Main | `nodriver_kham_main()` | 1475 | 主控制流程（URL 路由）|
+| Stage 2 | `nodriver_kham_login()` | 77 | 帳號登入（含 OCR）|
+| Stage 3 | `nodriver_kham_product()` | 457 | 產品頁面處理 |
+| Stage 4 | `nodriver_kham_date_auto_select()` | 477 | 日期自動選擇（含群組項目頁）|
+| Stage 5 | `nodriver_kham_area_auto_select()` | 853 | 區域自動選擇 |
+| Stage 5 | `nodriver_kham_seat_type_auto_select()` | 3041 | 座位圖票種選擇 |
+| Stage 5 | `nodriver_kham_seat_auto_select()` | 3366 | 座位圖區域選擇 |
+| Stage 6 | `nodriver_kham_performance()` | 1365 | 票數設定頁面 |
+| Stage 7 | `nodriver_kham_captcha()` | 1321 | OCR 驗證碼處理 |
+| Stage 7 | `nodriver_kham_auto_ocr()` | 1248 | 自動 OCR 重試 |
+| Stage 7 | `nodriver_kham_keyin_captcha_code()` | 741 | 驗證碼輸入 |
+| Stage 9 | `nodriver_kham_check_realname_dialog()` | 265 | 實名驗證對話框 |
+| Stage 10 | `nodriver_kham_go_buy_redirect()` | 210 | 點擊購買按鈕 |
+| Util | `nodriver_kham_allow_not_adjacent_seat()` | 327 | 允許非相鄰座位 |
+| Util | `nodriver_kham_switch_to_auto_seat()` | 344 | 切換系統選位 |
+| Util | `nodriver_kham_check_captcha_text_error()` | 424 | 驗證碼錯誤檢測 |
+| Seat | `nodriver_kham_seat_main()` | 3769 | 座位圖主處理 |
 
-**程式碼位置**：`src/nodriver_tixcraft.py`
+**程式碼位置**：`src/platforms/kham.py`（2026-03 自 `nodriver_tixcraft.py` 模組化拆出）
 
 ---
 
@@ -94,10 +94,15 @@
 | `utk0201_.aspx?product_id=` | 產品頁面 | 直接購買+驗證碼 |
 | `utk0201_00.aspx?product_id=` | 日期選擇 | `nodriver_kham_product()` |
 | `utk0201_040.aspx?agid=` | 活動群組 | 購買按鈕點擊 |
-| `utk0201_041.aspx?agid=` | 群組項目 | 立即訂購按鈕 |
-| `utk0202_.aspx` | 區域選擇 | `nodriver_kham_area_auto_select()` |
-| `utk0203_.aspx` | 票數設定 | UDN 專用流程 |
+| `utk0201_041.aspx?agid=` | 群組項目 | `nodriver_kham_date_auto_select()`（#357：套用 keyword_exclude + mode）|
+| 非 UTK0202 的 `*.aspx?performance_id=&product_id=` | 區域頁（salesTable，含實體票 `UTK0201_000`）| 區域選擇 + 售完節流（#357）|
+| `utk0202_.aspx?performance_id=&activity_group_id=` | 群組福利券票種頁 | 票種選擇 + 驗證碼（以檔名 `utk0202` 區分，#357）|
+| `utk0202_.aspx?performance_id=&performance_price_area_id=` | 票數設定 | 票數 + 驗證碼 + 送單 |
+| `utk0203_.aspx?product_id=` | UDN 場次選擇 | UDN 專用流程 |
+| `utk0204_.aspx`（無 PRICE_AREA_ID）| UDN 區域選擇 | UDN 區域 + 座位圖同頁 |
 | `utk0205_.aspx` | 座位圖 | `nodriver_kham_seat_main()` |
+| `utk0222_02.aspx?product_id=` | UDN 快速購買 | UDN quick buy 流程 |
+| `utk0206_.aspx` | 結帳頁 | 送單後確認 |
 
 ---
 
@@ -281,7 +286,7 @@ async def nodriver_kham_check_realname_dialog(tab, config_dict):
 
 | 功能 | 選擇器 | 備註 |
 |------|--------|------|
-| 日期按鈕 | `button.red[onclick*="UTK0202"]` | 立即訂購 |
+| 日期/場次列 | `table.eventTABLE > tbody > tr` | 列過濾（keyword + keyword_exclude）後點列內按鈕；舊選擇器 `button.red[onclick*="UTK0202"]` 為 #357 根因，已移除 |
 | 票種按鈕 | `.ticket-type-btn`, `button.type-btn` | 座位圖頁面 |
 | 驗證碼圖片 | `#imgCAPTCHA` | Base64 格式 |
 | 驗證碼輸入 | `#CAPTCHA`, `input[name="CAPTCHA"]` | 文字輸入 |
@@ -307,7 +312,8 @@ async def nodriver_kham_check_realname_dialog(tab, config_dict):
 | v1.0 | 2024 | 初版：基本功能支援 |
 | v1.1 | 2025-08 | 座位圖選擇支援 |
 | v1.2 | 2025-10 | OCR 驗證碼優化 |
-| **v1.3** | **2025-12** | **UTK0205 座位圖完整支援** |
+| v1.3 | 2025-12 | UTK0205 座位圖完整支援 |
+| **v1.4** | **2026-06** | **#357 群組活動修復：041 群組項目改走 date_auto_select、以檔名區分 UTK0201_000/UTK0202、售完節流；索引對齊 platforms/kham.py** |
 
 **v1.3 亮點**：
 - ✅ 完整的座位圖選擇流程（UTK0205）

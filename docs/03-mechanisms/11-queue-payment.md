@@ -1,7 +1,7 @@
 # 機制 11：排隊與付款 (Stage 11)
 
 **文件說明**：說明搶票系統的排隊機制（Queue-IT、平台內建排隊）與付款頁面偵測策略
-**最後更新**：2026-05-15
+**最後更新**：2026-06-10
 
 ---
 
@@ -56,14 +56,14 @@
 
 TicketPlus 使用 Vue.js 實作的頁面內排隊機制。
 
-**排隊偵測** — `nodriver_ticketplus_check_queue_status()` (行 7473)：
+**排隊偵測** — `nodriver_ticketplus_check_queue_status()`（`src/platforms/ticketplus.py`）：
 
 透過 JS 評估偵測多種排隊指標：
 - **關鍵字偵測**：「排隊購票中」、「請稍候」、「請勿離開」、「正在處理」等 9 個中文關鍵字
 - **遮罩層偵測**：`.v-overlay__scrim` 元素 opacity 為 1 或 display 非 none
 - **對話框偵測**：`.v-dialog` 內文包含「排隊」或「請稍候」
 
-**排隊監控迴圈**（行 7700-7746）：
+**排隊監控迴圈**（`nodriver_ticketplus_main()` 內）：
 
 ```
 偵測到排隊 → 進入 while True 迴圈 → 每 5-10 秒隨機間隔檢查
@@ -80,7 +80,7 @@ TicketPlus 使用 Vue.js 實作的頁面內排隊機制。
 
 HKTicketing 使用多種排隊/重導頁面。
 
-**排隊 URL 模式**（行 20742-20749）：
+**排隊 URL 模式**（`HKTICKETING_REDIRECT_URL_LIST`，`src/platforms/hkticketing.py`）：
 
 ```python
 HKTICKETING_REDIRECT_URL_LIST = [
@@ -91,11 +91,11 @@ HKTICKETING_REDIRECT_URL_LIST = [
 ]
 ```
 
-**重導處理** — `nodriver_hkticketing_url_redirect()` (行 22972)：
+**重導處理** — `nodriver_hkticketing_url_redirect()`（`src/platforms/hkticketing.py`）：
 
 偵測到排隊 URL 後，自動導回 `entry-hotshow.hkticketing.com/` 或對應的 galaxymacau / ticketek 首頁，並依 `auto_reload_page_interval` 設定等待後重試。
 
-**錯誤頁面關鍵字**（行 20710-20738）：
+**錯誤頁面關鍵字**（`src/platforms/hkticketing.py`）：
 
 系統偵測多種伺服器錯誤與排隊文字，包含：
 - SQL Server 錯誤、HTTP 500/502/503/504
@@ -104,7 +104,7 @@ HKTICKETING_REDIRECT_URL_LIST = [
 
 ### 4. 等待頁面 — FunOne
 
-FunOne 使用自動重導的等待頁面（行 25170-25175）。
+FunOne 使用自動重導的等待頁面（`src/platforms/funone.py`）。
 
 - 偵測 `page_type == "WAITING"` 時不執行任何操作
 - 僅記錄一次日誌（`waiting_page_logged` 旗標）
@@ -122,14 +122,14 @@ FunOne 使用自動重導的等待頁面（行 25170-25175）。
 
 各平台的付款頁面判斷方式：
 
-| 平台 | 判斷條件 | 行號 |
-|------|---------|------|
-| TixCraft | URL 含 `/ticket/checkout` | 6137 |
-| TicketPlus | URL 含 `/confirm/` 或 `/confirmseat/` | 7716 |
-| HKTicketing Type02 | URL 含 `#/generateSeat` | 23257 |
-| Cityline | URL 含 `/shoppingBasket` | 14294 |
-| KHAM | 進入結帳頁面 | 17516 |
-| iBon | checkout 頁面偵測 | 13717 |
+| 平台 | 判斷條件 | 程式碼位置 |
+|------|---------|-----------|
+| TixCraft | URL 含 `/ticket/checkout` | `platforms/tixcraft.py` |
+| TicketPlus | URL 含 `/confirm/` 或 `/confirmseat/` | `platforms/ticketplus.py` |
+| HKTicketing Type02 | URL 含 `#/generateSeat` | `platforms/hkticketing.py` |
+| Cityline | URL 含 `/shoppingBasket` | `platforms/cityline.py` |
+| KHAM | 進入結帳頁面 | `platforms/kham.py` |
+| iBon | checkout 頁面偵測 | `platforms/ibon.py` |
 
 ---
 

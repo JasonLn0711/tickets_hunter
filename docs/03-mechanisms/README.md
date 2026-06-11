@@ -1,7 +1,7 @@
 # 12-Stage 搶票機制文件索引
 
 **文件說明**：提供 12 階段搶票自動化機制的完整索引與導覽，便於查找相關文件
-**最後更新**：2026-02-13
+**最後更新**：2026-06-10
 
 ---
 
@@ -92,9 +92,9 @@ docs/03-mechanisms/
 - 學習 Shadow DOM 處理技術
 
 **關鍵程式碼片段**：
-- Early Return Pattern (TixCraft, Line 4685-4733)
-- Conditional Fallback (TixCraft, Line 4735-4755)
-- DOMSnapshot 日期選擇 (iBon, Line 9085-9415)
+- Early Return Pattern（TixCraft，`platforms/tixcraft.py` 的 `nodriver_tixcraft_date_auto_select`）
+- Conditional Fallback（TixCraft，`nodriver_tixcraft_date_auto_select`）
+- DOMSnapshot 日期選擇（iBon，`platforms/ibon.py` 的 `nodriver_ibon_date_auto_select` 系列）
 
 ---
 
@@ -116,10 +116,10 @@ docs/03-mechanisms/
 - 學習票數可用性檢查機制
 
 **關鍵程式碼片段**：
-- Early Return Pattern (TixCraft, Line 4910-4925)
-- Conditional Fallback (TixCraft, Line 4927-4955)
-- keyword_exclude 過濾 (TixCraft, Line 5040-5042)
-- AND 邏輯支援 (TixCraft, Line 5049-5074)
+- Early Return Pattern（TixCraft，`platforms/tixcraft.py` 的 `nodriver_tixcraft_area_auto_select`）
+- Conditional Fallback（TixCraft，`nodriver_tixcraft_area_auto_select`）
+- keyword_exclude 過濾（TixCraft，`nodriver_get_tixcraft_target_area`）
+- AND 邏輯支援（TixCraft，`nodriver_get_tixcraft_target_area`）
 
 ---
 
@@ -143,9 +143,9 @@ docs/03-mechanisms/
 - 了解 Shadow DOM 驗證碼圖片擷取
 
 **關鍵程式碼片段**：
-- 問答式驗證碼 (KKTIX, Line 1411+)
-- Canvas OCR 擷取 (TixCraft, Line 5696+)
-- Shadow DOM 驗證碼 (iBon, Line 11160+)
+- 問答式驗證碼（KKTIX，`platforms/kktix.py`）
+- Canvas OCR 擷取（TixCraft，`platforms/tixcraft.py`）
+- Shadow DOM 驗證碼（iBon，`platforms/ibon.py`）
 
 ---
 
@@ -215,6 +215,7 @@ docs/03-mechanisms/
 **平台特色**：
 - **問答式驗證碼**：最具挑戰性的驗證碼類型
 - **價格列表模式**：兩階段區域選擇（價格表 + 票數輸入）
+- **批次擷取票種列**：先取得所有票種文字與 input index，再做關鍵字配對
 - **fail_list 機制**：智慧答案選擇避免重複錯誤
 
 **推薦閱讀**：
@@ -480,6 +481,7 @@ else:
 | | | ✅ Stage 7: 驗證碼處理機制 |
 | | | ✅ KKTIX 參考實作 |
 | | | ✅ iBon 參考實作 |
+| v2.6 | 2026-06-10 | 平台模組化重構後更新：移除行號引用，程式碼位置改為 `platforms/*.py` / `nodriver_common.py` |
 | v2.5 | 2026-04-07 | 新增 Yii2 Captcha Hash 預驗證機制文件 |
 | v2.4 | 2026-02-15 | 新增 Cloudflare Turnstile 偵測與自動點擊機制文件 |
 | v2.3 | 2026-02-13 | 修正 Active Polling 狀態：區分 Simple Wait（已實作）與 Active Polling（設計中） |
@@ -517,7 +519,7 @@ else:
 **程式碼片段規範**：
 - 20-60 行（不超過一個螢幕）
 - 包含關鍵邏輯,省略細節
-- 標註行號（Line xxx-xxx）
+- 標註函式名稱與所在檔案（不標註行號，避免重構後過時）
 - 中文註解說明關鍵步驟
 
 ### 更新現有文件
@@ -534,5 +536,5 @@ else:
 
 ---
 
-**最後更新**：2026-04-07（v2.5）
+**最後更新**：2026-06-10（v2.6）
 **維護者**：Tickets Hunter 開發團隊

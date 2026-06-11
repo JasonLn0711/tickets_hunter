@@ -2,8 +2,8 @@
 文件說明：協助使用者在 5 分鐘內完成第一次搶票設定
 分類：Getting Started (level: 1)
 目標受眾：初學者
-版本：1.2
-最後更新：2025-11-12
+版本：1.3
+最後更新：2026-06-10
 -->
 
 # 快速入門指南
@@ -25,7 +25,7 @@
 ## 📋 前置準備
 
 ### 1. 確認已安裝
-- Python 3.9-3.11（建議使用 3.10）
+- Python 3.10-3.11（建議使用 3.10；3.12 僅部分支援，3.13 以上不支援）
 - Chrome 瀏覽器
 - Tickets Hunter 程式 (已下載或 git clone)
 
@@ -364,12 +364,12 @@ python --version
 
 **方法 1：降級 Python 版本（推薦）**
 ```bash
-# 安裝 Python 3.10（推薦）或 3.11/3.12
+# 安裝 Python 3.10（推薦）或 3.11
 # 下載網址：https://www.python.org/downloads/
 
 # 確認版本
 python --version
-# 應顯示 Python 3.10.x 或 3.11.x 或 3.12.x
+# 應顯示 Python 3.10.x 或 3.11.x
 ```
 
 **方法 2：Apple Silicon Mac 用戶**

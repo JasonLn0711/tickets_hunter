@@ -24,6 +24,7 @@ from nodriver_common import (
     nodriver_check_checkbox,
     nodriver_current_url,
     nodriver_get_captcha_image_from_dom_snapshot,
+    nodriver_press_button,
     play_sound_while_ordering,
     send_discord_notification,
     send_telegram_notification,
@@ -423,10 +424,13 @@ async def nodriver_ibon_date_auto_select_pierce(tab, config_dict):
                         )
 
                         if is_tr_container:
-                            # Found potential container, extract outer HTML for date context
+                            # Found container; extract its full text (not a 200-char slice).
+                            # Strip HTML tags so date_context holds the date column AND the
+                            # session-name column (e.g. "雙日票"), enabling keyword match on
+                            # ticket-type names when sessions share the same start date.
                             try:
                                 outer_html = await tab.send(cdp.dom.get_outer_html(node_id=current_node_id))
-                                date_context = outer_html[:200]  # Use first 200 chars
+                                date_context = util.remove_html_tags(outer_html)
                                 break
                             except Exception:
                                 pass
@@ -724,32 +728,28 @@ async def nodriver_ibon_date_auto_select_domsnapshot(tab, config_dict):
                             else:
                                 break
 
-                        # Step 4: Find .date element within .tr container
+                        # Step 4: Collect all text under the .tr container.
+                        # The row has columns: date / session-name / venue / button.
+                        # The session-name column (e.g. "雙日票", "08/29單日票") carries no
+                        # marker class, so gather the whole row's text instead of only the
+                        # .date cell. This lets keyword matching target ticket-type names
+                        # when several sessions share the same start date.
                         if tr_container_idx >= 0:
-                            # Search siblings and children of .tr container for .date element
-                            for j in range(len(node_names)):
-                                if parent_indices[j] == tr_container_idx or parent_indices[j] == i:
-                                    # Check if this node has class='date' or class contains 'date'
-                                    if j < len(attributes_list):
-                                        node_attrs = {}
-                                        node_attr_indices = attributes_list[j]
-                                        for k in range(0, len(node_attr_indices), 2):
-                                            if k + 1 < len(node_attr_indices):
-                                                key = strings[node_attr_indices[k]]
-                                                val = strings[node_attr_indices[k + 1]]
-                                                node_attrs[key] = val
-
-                                        node_class = node_attrs.get('class', '')
-                                        if 'date' in node_class:
-                                            # Extract text content from this node's children
-                                            for text_idx in range(j + 1, min(j + 10, len(node_names))):
-                                                if node_names[text_idx] == '#text':
-                                                    date_text = node_values[text_idx].strip()
-                                                    if date_text:
-                                                        date_context = date_text
-                                                        break
-                                            if date_context:
-                                                break
+                            context_parts = []
+                            for j, j_name in enumerate(node_names):
+                                if j_name != '#text':
+                                    continue
+                                ancestor = parent_indices[j] if j < len(parent_indices) else -1
+                                hops = 0
+                                while ancestor >= 0 and hops < 12:
+                                    if ancestor == tr_container_idx:
+                                        text_value = node_values[j].strip()
+                                        if text_value:
+                                            context_parts.append(text_value)
+                                        break
+                                    ancestor = parent_indices[ancestor] if ancestor < len(parent_indices) else -1
+                                    hops += 1
+                            date_context = ' '.join(context_parts)
 
                     purchase_buttons.append({
                         'backend_node_id': backend_node_ids[i],
@@ -1499,7 +1499,9 @@ async def nodriver_ibon_area_auto_select(tab, config_dict, area_keyword_item="")
 
         import time
         max_wait = 5  # Maximum wait (increased for page load after Cloudflare)
-        check_interval = 0.15  # Polling interval
+        # #322: 0.05 polling so detection reacts to render as soon as the table settles.
+        # Keep the stability guard below to avoid reading a half-rendered area table.
+        check_interval = 0.05  # Polling interval
         start_time = time.time()
         min_tr_count = 3  # Minimum TR elements to consider page loaded (header + at least 1 data row)
 
@@ -2594,8 +2596,9 @@ async def nodriver_ibon_auto_ocr(tab, config_dict, ocr, away_from_keyboard_enabl
                 break
 
             if attempt < max_retries:
-                # Exponential backoff: delay = 0.5 * (2 ^ (attempt - 1))
-                delay = 0.5 * (2 ** (attempt - 1))
+                # #322: gentler backoff (selects already ensured by wait_for_select_elements)
+                # Exponential backoff: delay = 0.2 * (2 ^ (attempt - 1))
+                delay = 0.2 * (2 ** (attempt - 1))
                 debug.log(f"[TICKET RETRY] Attempt {attempt}/{max_retries} failed, waiting {delay}s (exponential backoff)")
                 await asyncio_sleep_with_pause_check(delay, config_dict)
 
@@ -4270,7 +4273,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                                 break
 
                             if attempt < max_retries:
-                                delay = 0.5 * (2 ** (attempt - 1))
+                                delay = 0.2 * (2 ** (attempt - 1))
                                 debug.log(f"[TICKET RETRY] Attempt {attempt}/{max_retries} failed, waiting {delay}s (exponential backoff)")
                                 await asyncio_sleep_with_pause_check(delay, config_dict)
 
@@ -4399,7 +4402,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                                 break
 
                             if attempt < max_retries:
-                                delay = 0.5 * (2 ** (attempt - 1))
+                                delay = 0.2 * (2 ** (attempt - 1))
                                 debug.log(f"[TICKET RETRY] Attempt {attempt}/{max_retries} failed, waiting {delay}s")
                                 await asyncio_sleep_with_pause_check(delay, config_dict)
 
@@ -4551,7 +4554,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                     break
 
                 if attempt < max_retries:
-                    delay = 0.5 * (2 ** (attempt - 1))
+                    delay = 0.2 * (2 ** (attempt - 1))
                     debug.log(f"[TICKET RETRY] Attempt {attempt}/{max_retries} failed, waiting {delay}s (exponential backoff)")
                     await asyncio_sleep_with_pause_check(delay, config_dict)
 
@@ -4709,7 +4712,7 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
                             break
 
                         if attempt < max_retries:
-                            delay = 0.5 * (2 ** (attempt - 1))
+                            delay = 0.2 * (2 ** (attempt - 1))
                             debug.log(f"[TICKET RETRY] Attempt {attempt}/{max_retries} failed, waiting {delay}s (exponential backoff)")
                             await asyncio_sleep_with_pause_check(delay, config_dict)
 
