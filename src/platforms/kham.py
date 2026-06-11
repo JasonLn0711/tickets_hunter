@@ -23,6 +23,7 @@ from nodriver_common import (
     asyncio_sleep_with_pause_check,
     check_and_handle_pause,
     nodriver_check_checkbox,
+    nodriver_force_check_checkbox,
     nodriver_check_modal_dialog_popup,
     nodriver_get_captcha_image_from_dom_snapshot,
     play_sound_while_ordering,
@@ -1377,6 +1378,11 @@ async def nodriver_kham_performance(tab, config_dict, ocr, domain_name, model_na
 
     is_need_refresh = False
 
+    # Record the URL before area selection. Clicking a kham/ticket area row fires
+    # top.location.href to the next page, and we use this baseline below to detect
+    # that navigation.
+    pre_select_url = tab.target.url
+
     if len(area_keyword) > 0:
         # Parse JSON array keyword
         area_keyword_array = util.parse_keyword_string_to_array(area_keyword)
@@ -1428,10 +1434,37 @@ async def nodriver_kham_performance(tab, config_dict, ocr, domain_name, model_na
 
     if is_need_refresh:
         debug.log("is_need_refresh:", is_need_refresh)
+        # Stage 5: area sold out / keyword not matched -> throttle the reload by
+        # auto_reload_page_interval before retrying, mirroring date_auto_select
+        # (see the reload block ~line 725). Without this delay the main loop
+        # hammers the page roughly once per second instead of honouring the
+        # user's configured refresh interval.
+        reload_interval = config_dict["advanced"].get("auto_reload_page_interval", 0.0)
+        if reload_interval > 0:
+            await tab.sleep(reload_interval)
         try:
             await tab.reload()
         except:
             pass
+        # The page is reloading and the current DOM is stale, so skip the
+        # captcha/submit attempt this round. Returning is_captcha_sent=False
+        # makes the caller skip the add-to-cart submit (avoids the wasted
+        # OCR + "Add shopping cart button not found" churn on a sold-out page).
+        return is_price_assign_by_bot, False
+
+    # Stage 5: for kham/ticket, clicking an area row fires top.location.href to
+    # UTK0205 (seat map) or UTK0202 (ticket-number page). When that navigation
+    # happens, hand off to the main loop's dedicated handler instead of running
+    # captcha + add-to-cart here -- submitting before seat selection raises a
+    # "please choose a seat" error and wastes an OCR + submit + retry round.
+    # UDN keeps its seat map on the same UTK0204 page (no navigation) and skips
+    # captcha entirely, so it is excluded and its flow stays unchanged.
+    if is_price_assign_by_bot and 'udnfunlife' not in domain_name:
+        for _ in range(6):  # up to ~3s; exits as soon as the navigation is seen
+            if tab.target.url != pre_select_url:
+                debug.log("[KHAM PERFORMANCE] Area click navigated to next page; handing off to main loop")
+                return is_price_assign_by_bot, False
+            await tab.sleep(0.5)
 
     # udn uses reCaptcha, skip for now
     if 'udnfunlife' not in domain_name:
@@ -1666,31 +1699,23 @@ async def nodriver_kham_main(tab, url, config_dict, ocr):
         await nodriver_kham_go_buy_redirect(tab, domain_name)
 
     # Activity Group Item page (UTK0201_041.aspx?AGID=)
-    # This page has "立即訂購" buttons that redirect to UTK0202
+    # This page is a standard table.eventTABLE listing multiple performances /
+    # ticket types on the SAME date (e.g. physical ticket vs welfare voucher),
+    # each row carrying its own "立即訂購" button.
+    # Issue #357: the buttons redirect to DIFFERENT pages
+    # (physical -> UTK0201_000, voucher -> UTK0202), so the old
+    # 'button.red[onclick*="UTK0202"]' selector only ever matched the voucher row
+    # and clicked buttons[0], ignoring both selection mode and keyword_exclude.
+    # Reuse date_auto_select, which filters eventTABLE rows (keyword_exclude),
+    # applies the selection mode, and clicks the button inside the chosen row.
     if 'utk0201_041.aspx?agid=' in url.lower():
         debug.log("Detected KHAM Activity Group Item page (UTK0201_041)")
 
         # Check realname dialog first
         await nodriver_kham_check_realname_dialog(tab, config_dict)
 
-        # Click "立即訂購" button (redirects to UTK0202)
-        try:
-            click_result = await tab.evaluate('''
-                (function() {
-                    // Find all "立即訂購" buttons that redirect to UTK0202
-                    const buttons = document.querySelectorAll('button.red[onclick*="UTK0202"]');
-                    if (buttons.length > 0) {
-                        // Click the first available button
-                        buttons[0].click();
-                        return buttons.length;
-                    }
-                    return null;
-                })();
-            ''')
-            if click_result:
-                debug.log(f"Clicked buy button, total buttons: {click_result}")
-        except Exception as exc:
-            debug.log(f"Click buy button exception: {exc}")
+        # Stage 4: select the correct performance row (keyword_exclude + mode aware)
+        await nodriver_kham_date_auto_select(tab, domain_name, config_dict)
 
     # Product page (UTK0201_.aspx?product_id=)
     if 'utk0201_.aspx?product_id=' in url.lower():
@@ -2291,9 +2316,13 @@ async def nodriver_kham_main(tab, url, config_dict, ocr):
 
     else:
         # Kham / Ticket.com.tw handling
-        # Performance page (.aspx?performance_id= & product_id=)
-        # Exclude Activity Group pages (handled separately above)
-        if '.aspx?performance_id=' in url.lower() and 'product_id=' in url.lower() and 'activity_group_id=' not in url.lower():
+        # Performance / area page (.aspx?performance_id= & product_id=)
+        # Issue #357: activity-group physical tickets land on UTK0201_000.aspx,
+        # which carries the SAME query string (performance_id + product_id +
+        # activity_group_id) as the UTK0202 voucher page below. Distinguish by
+        # FILE NAME, not activity_group_id: anything that is not UTK0202 is an
+        # area page (salesTable) and must run the area + sold-out handler.
+        if '.aspx?performance_id=' in url.lower() and 'product_id=' in url.lower() and 'utk0202' not in url.lower():
             model_name = url.split('/')[5] if len(url.split('/')) > 5 else "UTK0204"
             if len(model_name) > 7:
                 model_name = model_name[:7]
@@ -2326,18 +2355,20 @@ async def nodriver_kham_main(tab, url, config_dict, ocr):
                 else:
                     await nodriver_kham_switch_to_auto_seat(tab)
 
-                # Clean sold out rows (kham specific)
+                # Clean sold out rows (kham specific). Only strip the rows here;
+                # do NOT location.reload() when all rows are sold out. A bare
+                # location.reload() bypasses auto_reload_page_interval and reloads
+                # the sold-out page in place every loop (~1x/sec), which Doc 13
+                # (Simple Wait) and issue-322 both rule out. When every row is
+                # sold out, nodriver_kham_performance() below sees zero area rows,
+                # sets is_need_refresh, and reloads via the throttled Simple Wait
+                # path instead.
                 if "kham.com.tw" in url:
                     try:
                         await tab.evaluate('''
                             (function() {
                                 const soldoutRows = document.querySelectorAll('tr.Soldout');
                                 soldoutRows.forEach(row => row.remove());
-
-                                const ticketItems = document.querySelectorAll('tr.status_tr');
-                                if (ticketItems.length === 0) {
-                                    location.reload();
-                                }
                             })();
                         ''')
                     except:
@@ -2456,9 +2487,12 @@ async def nodriver_kham_main(tab, url, config_dict, ocr):
 
             debug.log(f"Seat selection result: {is_seat_selection_success}")
 
-        # UTK0202 page - Activity Group ticket selection (new format)
+        # UTK0202 page - Activity Group voucher ticket selection (new format)
         # URL: UTK0202_.aspx?PERFORMANCE_ID=xxx&PRODUCT_ID=xxx&ACTIVITY_GROUP_ID=xxx&ACTIVITY_GROUP_ITEM_ID=xxx
-        if '.aspx?performance_id=' in url.lower() and 'activity_group_id=' in url.lower():
+        # Issue #357: must match the UTK0202 file name explicitly, otherwise the
+        # physical-ticket UTK0201_000 area page (identical query string) is
+        # wrongly treated as a captcha page and spins forever on empty OCR.
+        if 'utk0202' in url.lower() and '.aspx?performance_id=' in url.lower() and 'activity_group_id=' in url.lower():
             model_name = url.split('/')[5] if len(url.split('/')) > 5 else "UTK0202"
             if len(model_name) > 7:
                 model_name = model_name[:7]
@@ -2777,10 +2811,11 @@ async def nodriver_kham_main(tab, url, config_dict, ocr):
                     except Exception as e:
                         debug.log(f"Login detection error: {e}")
 
-                # If login required, trigger idle and don't submit
+                # If login required, skip submit and let the next loop retry.
+                # Idle triggering belongs to the settings/Web UI layer; with
+                # auto-login configured, nodriver_kham_login handles this case.
                 if need_login:
-                    settings.maxbot_idle()
-                    debug.log("[IDLE ACTIVATED] Waiting for manual login - ticket number and captcha already filled")
+                    debug.log("[LOGIN REQUIRED] Skip submit - waiting for login (auto-login or manual)")
                 else:
                     # Normal submit flow
                     try:

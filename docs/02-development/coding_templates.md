@@ -1,7 +1,7 @@
 # 搶票程式標準架構與範本
 
 **文件說明**：提供 Tickets Hunter 專案的程式碼範本、12 階段實作檢查清單與跨平台可重用代碼片段
-**最後更新**：2025-11-12
+**最後更新**：2026-06-10
 
 ---
 
@@ -125,6 +125,9 @@ debug.log("message")
 ### 🏅 **推薦範本 - ZenDriver 主程式架構**
 
 ```python
+# platforms/{platform}.py 模組層級狀態（檔案頂部宣告一次）
+_state = {}
+
 async def nodriver_{platform}_main(tab, url, config_dict, ocr=None):
     """
     ZenDriver 版本主流程控制 (推薦使用)
@@ -142,16 +145,16 @@ async def nodriver_{platform}_main(tab, url, config_dict, ocr=None):
     """
     debug = util.create_debug_logger(config_dict)
 
-    # 全域狀態管理
-    global {platform}_dict
-    if not '{platform}_dict' in globals():
-        {platform}_dict = {}
-        {platform}_dict["fail_list"] = []           # OCR 失敗記錄
-        {platform}_dict["start_time"] = None        # 計時開始
-        {platform}_dict["done_time"] = None         # 計時結束
-        {platform}_dict["elapsed_time"] = None      # 總耗時
-        {platform}_dict["played_sound_ticket"] = False  # 音效狀態
-        {platform}_dict["played_sound_order"] = False
+    # 模組層級狀態管理
+    if "fail_list" not in _state:
+        _state.update({
+            "fail_list": [],                # OCR 失敗記錄
+            "start_time": None,             # 計時開始
+            "done_time": None,              # 計時結束
+            "elapsed_time": None,           # 總耗時
+            "played_sound_ticket": False,   # 音效狀態
+            "played_sound_order": False,
+        })
 
     debug.log(f"[NoDriver] {platform}_main: processing URL: {url}")
 
@@ -163,7 +166,7 @@ async def nodriver_{platform}_main(tab, url, config_dict, ocr=None):
 
     elif '/event' in url or '/activity' in url:
         # 活動列表 / 日期選擇頁面
-        {platform}_dict["start_time"] = time.time()
+        _state["start_time"] = time.time()
 
         if config_dict["date_auto_select"]["enable"]:
             await nodriver_{platform}_date_auto_select(tab, config_dict)
@@ -175,7 +178,7 @@ async def nodriver_{platform}_main(tab, url, config_dict, ocr=None):
 
     elif '/ticket' in url or '/booking' in url:
         # 票數選擇與驗證碼頁面
-        {platform}_dict["done_time"] = time.time()
+        _state["done_time"] = time.time()
 
         # 票數分配
         await nodriver_{platform}_assign_ticket_number(tab, config_dict)
@@ -186,8 +189,8 @@ async def nodriver_{platform}_main(tab, url, config_dict, ocr=None):
 
     elif '/checkout' in url or '/confirm' in url:
         # 成功頁面
-        if {platform}_dict["start_time"] and {platform}_dict["done_time"]:
-            elapsed = {platform}_dict["done_time"] - {platform}_dict["start_time"]
+        if _state["start_time"] and _state["done_time"]:
+            elapsed = _state["done_time"] - _state["start_time"]
             print(f"[NoDriver] 搶票完成！耗時: {elapsed:.3f} 秒")
 
     debug.log(f"[NoDriver] {platform}_main completed")
@@ -222,12 +225,13 @@ def {platform}_main(driver, url, config_dict, ocr=None):
     """
     debug = util.create_debug_logger(config_dict)
 
-    global {platform}_dict
-    if not '{platform}_dict' in globals():
-        {platform}_dict = {}
-        {platform}_dict["fail_list"] = []
-        {platform}_dict["start_time"] = None
-        {platform}_dict["done_time"] = None
+    # 模組層級狀態管理（_state = {} 於檔案頂部宣告一次）
+    if "fail_list" not in _state:
+        _state.update({
+            "fail_list": [],
+            "start_time": None,
+            "done_time": None,
+        })
 
     debug.log(f"[Chrome] {platform}_main: processing URL: {url}")
 
@@ -235,7 +239,7 @@ def {platform}_main(driver, url, config_dict, ocr=None):
     if '/login' in url:
         {platform}_login(driver, config_dict)
     elif '/event' in url:
-        {platform}_dict["start_time"] = time.time()
+        _state["start_time"] = time.time()
         {platform}_date_auto_select(driver, config_dict)
         {platform}_area_auto_select(driver, config_dict)
     elif '/ticket' in url:
@@ -1042,7 +1046,7 @@ def {platform}_function_with_retry(driver, config_dict, max_retry=3):
 #### `check_and_handle_pause(config_dict)`
 主要暫停檢查函數，所有平台函數都應使用此統一入口。
 
-**位置**：`src/nodriver_tixcraft.py:5301-5308`
+**位置**：`src/nodriver_common.py`
 
 **行為說明**：
 - 檢查暫停檔案 `MAXBOT_INT28_IDLE.txt` 是否存在
@@ -1084,7 +1088,7 @@ async def nodriver_platform_function(tab, config_dict):
 #### 1. `sleep_with_pause_check(tab, seconds, config_dict)`
 取代 `tab.sleep()`，在等待期間檢查暫停狀態。
 
-**位置**：`src/nodriver_tixcraft.py:5318-5323`
+**位置**：`src/nodriver_common.py`
 
 **使用時機**：需要延遲等待的 ZenDriver 函數
 
@@ -1102,7 +1106,7 @@ if await sleep_with_pause_check(tab, 0.6, config_dict):
 #### 2. `asyncio_sleep_with_pause_check(seconds, config_dict)`
 取代 `asyncio.sleep()`，在等待期間檢查暫停狀態。
 
-**位置**：`src/nodriver_tixcraft.py:5325-5331`
+**位置**：`src/nodriver_common.py`
 
 **使用時機**：不需要 tab 物件的純延遲等待
 
@@ -1121,7 +1125,7 @@ if await asyncio_sleep_with_pause_check(0.5, config_dict):
 #### 3. `evaluate_with_pause_check(tab, javascript_code, config_dict)`
 在執行 JavaScript 前檢查暫停狀態。
 
-**位置**：`src/nodriver_tixcraft.py:5333-5343`
+**位置**：`src/nodriver_common.py`
 
 **使用時機**：執行較長時間的 JavaScript 操作前
 
@@ -1144,7 +1148,7 @@ if result is None:  # 暫停中
 #### 4. `with_pause_check(task_func, config_dict, *args, **kwargs)`
 包裝長時間任務，支援中途暫停。
 
-**位置**：`src/nodriver_tixcraft.py:5345-5367`
+**位置**：`src/nodriver_common.py`
 
 **使用時機**：執行耗時較長的非同步任務
 
@@ -1312,7 +1316,7 @@ async def nodriver_platform_date_auto_select(tab, config_dict):
 ```
 **責任範圍**:
 - URL 路由判斷 (`/login`, `/event`, `/ticket`, `/area`, `/checkout`)
-- 流程狀態管理 (`{platform}_dict`)
+- 流程狀態管理（模組層級 `_state` dict）
 - 時間追蹤 (`start_time`, `done_time`, `elapsed_time`)
 - 音效提醒控制 (`played_sound_ticket`, `played_sound_order`)
 
@@ -1427,7 +1431,7 @@ async def nodriver_platform_date_auto_select(tab, config_dict):
 - [x] **命名一致性**: `platform_function_name` 格式
 - [x] **Debug 標準**: `debug = util.create_debug_logger(config_dict)`
 - [x] **異常處理**: 所有 DOM 操作包覆 try-catch
-- [x] **狀態追蹤**: `{platform}_dict` 全域變數管理
+- [x] **狀態追蹤**: 模組層級 `_state` dict 管理
 - [x] **註解完整**: 函數用途、參數說明、回傳值說明
 
 #### 效能與可靠性
@@ -1596,6 +1600,9 @@ debug.log(f"page title: {driver.title}")
 
 ```python
 # Chrome 版本（維護模式）完整實作範例
+# 模組層級狀態（檔案頂部宣告一次）
+_state = {}
+
 def example_platform_main(driver, url, config_dict, ocr, Captcha_Browser):
     """
     標準搶票平台主程式範本
@@ -1603,17 +1610,17 @@ def example_platform_main(driver, url, config_dict, ocr, Captcha_Browser):
     """
     debug = util.create_debug_logger(config_dict)
 
-    # 全域狀態管理
-    global example_platform_dict
-    if not 'example_platform_dict' in globals():
-        example_platform_dict = {}
-        example_platform_dict["fail_list"] = []  # OCR 失敗答案記錄
-        example_platform_dict["start_time"] = None  # 搶票開始時間
-        example_platform_dict["done_time"] = None   # 搶票完成時間
-        example_platform_dict["elapsed_time"] = None # 總耗時
-        example_platform_dict["played_sound_ticket"] = False  # 音效狀態
-        example_platform_dict["played_sound_order"] = False
-        example_platform_dict["retry_count"] = 0  # 重試計數器
+    # 模組層級狀態管理
+    if "fail_list" not in _state:
+        _state.update({
+            "fail_list": [],                # OCR 失敗答案記錄
+            "start_time": None,             # 搶票開始時間
+            "done_time": None,              # 搶票完成時間
+            "elapsed_time": None,           # 總耗時
+            "played_sound_ticket": False,   # 音效狀態
+            "played_sound_order": False,
+            "retry_count": 0,               # 重試計數器
+        })
 
     # URL 路由分發
     domain_name = url.split('/')[2]
@@ -1626,7 +1633,7 @@ def example_platform_main(driver, url, config_dict, ocr, Captcha_Browser):
 
     # 2. 主要購票流程
     elif '/event' in url or '/activity' in url:
-        example_platform_dict["start_time"] = time.time()
+        _state["start_time"] = time.time()
 
         # 日期選擇
         if config_dict["date_auto_select"]["enable"]:
@@ -1637,16 +1644,16 @@ def example_platform_main(driver, url, config_dict, ocr, Captcha_Browser):
         # 座位區域選擇
         if config_dict["area_auto_select"]["enable"]:
             example_platform_area_auto_select(driver, url, config_dict)
-            example_platform_dict["retry_count"] += 1
+            _state["retry_count"] += 1
 
             # 冷卻機制
-            if example_platform_dict["retry_count"] >= (60 * 15):
-                example_platform_dict["retry_count"] = 0
+            if _state["retry_count"] >= (60 * 15):
+                _state["retry_count"] = 0
                 time.sleep(5)
 
     elif '/ticket/ticket' in url or '/booking' in url:
         # 票數分配與驗證碼處理
-        example_platform_dict["done_time"] = time.time()
+        _state["done_time"] = time.time()
 
         # 同意條款
         is_agree_at_webdriver = not (
@@ -1665,24 +1672,24 @@ def example_platform_main(driver, url, config_dict, ocr, Captcha_Browser):
 
         # 音效提醒
         if config_dict["advanced"]["play_sound"]["ticket"]:
-            if not example_platform_dict["played_sound_ticket"]:
+            if not _state["played_sound_ticket"]:
                 play_sound_while_ordering(config_dict)
-            example_platform_dict["played_sound_ticket"] = True
+            _state["played_sound_ticket"] = True
 
     # 3. 成功檢測
     elif '/checkout' in url or '/confirm' in url:
         # 計算搶票效能
-        if example_platform_dict["start_time"] and example_platform_dict["done_time"]:
-            bot_elapsed_time = example_platform_dict["done_time"] - example_platform_dict["start_time"]
-            if example_platform_dict["elapsed_time"] != bot_elapsed_time:
+        if _state["start_time"] and _state["done_time"]:
+            bot_elapsed_time = _state["done_time"] - _state["start_time"]
+            if _state["elapsed_time"] != bot_elapsed_time:
                 print("bot elapsed time:", "{:.3f}".format(bot_elapsed_time))
-            example_platform_dict["elapsed_time"] = bot_elapsed_time
+            _state["elapsed_time"] = bot_elapsed_time
 
         # 成功音效
         if config_dict["advanced"]["play_sound"]["order"]:
-            if not example_platform_dict["played_sound_order"]:
+            if not _state["played_sound_order"]:
                 play_sound_while_ordering(config_dict)
-            example_platform_dict["played_sound_order"] = True
+            _state["played_sound_order"] = True
 
         # 成功提醒
         checkout_url = f"https://{domain_name}/checkout"
@@ -1695,9 +1702,9 @@ def example_platform_main(driver, url, config_dict, ocr, Captcha_Browser):
     # 4. 錯誤處理
     else:
         # 重置狀態
-        example_platform_dict["fail_list"] = []
-        example_platform_dict["played_sound_ticket"] = False
-        example_platform_dict["retry_count"] = 0
+        _state["fail_list"] = []
+        _state["played_sound_ticket"] = False
+        _state["retry_count"] = 0
 
 # ZenDriver 版本範例 (簡化版)
 async def nodriver_example_platform_main(tab, url, config_dict, ocr, Captcha_Browser):
@@ -1706,8 +1713,7 @@ async def nodriver_example_platform_main(tab, url, config_dict, ocr, Captcha_Bro
     """
     debug = util.create_debug_logger(config_dict)
 
-    # 相同的全域狀態管理結構
-    global example_platform_dict
+    # 共用模組層級 _state（初始化邏輯同 Chrome 版本）
     # ... 相同的初始化邏輯 ...
 
     # URL 路由 (使用 await)
@@ -1733,16 +1739,20 @@ async def nodriver_example_platform_main(tab, url, config_dict, ocr, Captcha_Bro
 
 #### 1. **狀態管理模式**
 ```python
-# 全域字典管理所有狀態
-{platform}_dict = {
-    "fail_list": [],           # 失敗記錄
-    "start_time": None,        # 計時系統
-    "done_time": None,
-    "elapsed_time": None,
-    "played_sound_ticket": False,  # 音效控制
-    "played_sound_order": False,
-    "retry_count": 0,          # 重試計數
-}
+# 模組層級 _state dict 管理所有狀態（platforms/*.py 檔案頂部宣告）
+_state = {}
+
+# 函式內首次使用時初始化
+if "fail_list" not in _state:
+    _state.update({
+        "fail_list": [],           # 失敗記錄
+        "start_time": None,        # 計時系統
+        "done_time": None,
+        "elapsed_time": None,
+        "played_sound_ticket": False,  # 音效控制
+        "played_sound_order": False,
+        "retry_count": 0,          # 重試計數
+    })
 ```
 
 #### 2. **模組化設計模式**
@@ -1929,4 +1939,4 @@ print("elapsed time:", "{:.3f}".format(elapsed_time))
 - ✅ 提升整體系統可維護性
 ---
 
-**最後更新**: 2025-10-28
+**最後更新**: 2026-06-10

@@ -1,13 +1,13 @@
 # ZenDriver vs Chrome 函式結構分析與平台索引
 
 **文件說明**：提供 Tickets Hunter 專案的模組結構、核心函數索引、平台實作分析與功能完整度評分
-**最後更新**：2026-03-05
+**最後更新**：2026-06-10
 
 ---
 
 此文件整合了以下內容（以 ZenDriver 為主要開發目標）：
 1. **標準功能架構** - 完整的搶票程式應包含的功能模組定義
-2. **平台函數索引** - 快速定位各平台函數行號位置
+2. **平台函數索引** - 快速定位各平台函數所屬檔案
 3. **結構差異分析** - ZenDriver 與 Chrome 版本的函式實作差異
 4. **功能完整度評分** - 根據標準架構評估各平台實作品質
 5. **重構規劃建議** - 基於分析結果的開發優先度建議
@@ -61,8 +61,9 @@
 ## 🎯 快速索引
 
 ### 主要檔案
-- **nodriver_tixcraft.py** - NoDriver 版本主迴圈 + URL 路由 (~827 行)
+- **nodriver_tixcraft.py** - NoDriver 版本主迴圈 + URL 路由
 - **nodriver_common.py** - 共用瀏覽器基礎設施（DOM 工具、暫停機制、Cloudflare、初始化）
+- **NonBrowser.py** - OCR 輔助模組（被 nodriver_tixcraft.py import）
 - **platforms/facebook.py** - Facebook 登入（2 函式）
 - **platforms/fansigo.py** - FANSI GO 平台（14 函式）
 - **platforms/cityline.py** - Cityline 平台（16 函式）
@@ -101,50 +102,50 @@
 
 ## 📖 平台函數 Sitemap
 
-> 此部分作為函數定位工具，可根據行號快速跳轉到特定功能
+> 此部分作為函數定位工具，可根據檔案歸屬快速定位特定功能
 >
 > **重要說明**：依照 ZenDriver First 開發策略，以下所有平台章節皆以 **ZenDriver 版本優先列出**，Chrome Driver 版本作為參考對照。建議優先查閱和開發 ZenDriver 版本功能。
 
 ### 🎫 **TixCraft 拓元**
 
-#### ZenDriver
+#### ZenDriver (`platforms/tixcraft.py`)
 ```
 拓元主流程
-├── nodriver_tixcraft_main               # 行 5878
-├── nodriver_tixcraft_date_auto_select   # 行 4564
-├── nodriver_tixcraft_area_auto_select   # 行 4871
-├── nodriver_get_tixcraft_target_area    # 行 4992
-├── nodriver_tixcraft_assign_ticket_number # 行 5189 ✅ (v1.3+ 支援 Indievox 票種關鍵字匹配)
-├── nodriver_tixcraft_ticket_main        # 行 5459
-├── nodriver_tixcraft_ticket_main_agree  # 行 5443
-├── nodriver_tixcraft_verify             # 行 4396
-├── nodriver_fill_verify_form            # 行 4400
-├── nodriver_tixcraft_input_check_code   # 行 4531
-├── nodriver_tixcraft_ticket_main_ocr    # 行 5800
-├── nodriver_tixcraft_keyin_captcha_code # 行 5520
-├── nodriver_tixcraft_toast              # 行 5652
-├── nodriver_tixcraft_reload_captcha     # 行 5666
-├── nodriver_tixcraft_get_ocr_answer     # 行 5684
-├── nodriver_tixcraft_auto_ocr           # 行 5738
-├── nodriver_tixcraft_home_close_window  # 行 3004
-├── nodriver_tixcraft_redirect           # 行 3031
-└── nodriver_ticket_number_select_fill   # 行 5113
+├── nodriver_tixcraft_main
+├── nodriver_tixcraft_date_auto_select
+├── nodriver_tixcraft_area_auto_select
+├── nodriver_get_tixcraft_target_area
+├── nodriver_tixcraft_assign_ticket_number # ✅ (v1.3+ 支援 Indievox 票種關鍵字匹配)
+├── nodriver_tixcraft_ticket_main
+├── nodriver_tixcraft_ticket_main_agree
+├── nodriver_tixcraft_verify
+├── nodriver_fill_verify_form
+├── nodriver_tixcraft_input_check_code
+├── nodriver_tixcraft_ticket_main_ocr
+├── nodriver_tixcraft_keyin_captcha_code
+├── nodriver_tixcraft_toast
+├── nodriver_tixcraft_reload_captcha
+├── nodriver_tixcraft_get_ocr_answer
+├── nodriver_tixcraft_auto_ocr
+├── nodriver_tixcraft_home_close_window
+├── nodriver_tixcraft_redirect
+└── nodriver_ticket_number_select_fill
 ```
 
 #### Chrome
 ```
 拓元主流程
-├── tixcraft_main                        # 行 5952
-├── tixcraft_date_auto_select            # 行 967
-├── tixcraft_area_auto_select            # 行 1535
-├── get_tixcraft_target_area             # 行 1333
-├── tixcraft_assign_ticket_number        # 行 2279
-├── tixcraft_ticket_main                 # 行 2337
-├── tixcraft_ticket_main_agree           # 行 2153
-├── tixcraft_verify                      # 行 1876
-├── tixcraft_auto_ocr                    # 行 2082
-├── tixcraft_keyin_captcha_code          # 行 1934
-└── tixcraft_ticket_main_ocr            # 行 2363
+├── tixcraft_main
+├── tixcraft_date_auto_select
+├── tixcraft_area_auto_select
+├── get_tixcraft_target_area
+├── tixcraft_assign_ticket_number
+├── tixcraft_ticket_main
+├── tixcraft_ticket_main_agree
+├── tixcraft_verify
+├── tixcraft_auto_ocr
+├── tixcraft_keyin_captcha_code
+└── tixcraft_ticket_main_ocr
 ```
 
 ### 🎪 **KKTIX**
@@ -173,41 +174,41 @@ KKTIX 主流程
 #### Chrome
 ```
 KKTIX 主流程
-├── kktix_main                           # 行 6117
-├── kktix_paused_main                    # 行 6084
-├── kktix_login                          # 行 5303
-├── kktix_reg_new_main                   # 行 2888
-├── kktix_travel_price_list              # 行 2456
-├── kktix_assign_ticket_number           # 行 2661
-├── kktix_reg_captcha                    # 行 2841
-├── kktix_check_agree_checkbox           # 行 2720
-└── kktix_press_next_button              # 行 2419
+├── kktix_main
+├── kktix_paused_main
+├── kktix_login
+├── kktix_reg_new_main
+├── kktix_travel_price_list
+├── kktix_assign_ticket_number
+├── kktix_reg_captcha
+├── kktix_check_agree_checkbox
+└── kktix_press_next_button
 ```
 
 ### 🎵 **TicketMaster**
 
-#### ZenDriver
+#### ZenDriver (`platforms/tixcraft.py`)
 ```
 TicketMaster 功能 (整合在 nodriver_tixcraft_main)
-├── nodriver_ticketmaster_promo                    # 行 4392
-├── nodriver_ticketmaster_parse_zone_info          # 行 3254
-├── get_ticketmaster_target_area                   # 行 3404
-├── nodriver_ticketmaster_get_ticketPriceList      # 行 3572
-├── nodriver_ticketmaster_date_auto_select         # 行 3668
-├── nodriver_ticketmaster_area_auto_select         # 行 3888
-├── nodriver_ticketmaster_assign_ticket_number     # 行 3987
-└── nodriver_ticketmaster_captcha                  # 行 4121
+├── nodriver_ticketmaster_promo
+├── nodriver_ticketmaster_parse_zone_info
+├── get_ticketmaster_target_area
+├── nodriver_ticketmaster_get_ticketPriceList
+├── nodriver_ticketmaster_date_auto_select
+├── nodriver_ticketmaster_area_auto_select
+├── nodriver_ticketmaster_assign_ticket_number
+└── nodriver_ticketmaster_captcha
 ```
 
 #### Chrome
 ```
 TicketMaster 功能 (整合在 tixcraft_main)
-├── ticketmaster_date_auto_select        # 行 1204
-├── ticketmaster_area_auto_select        # 行 1600
-├── get_ticketmaster_target_area         # 行 1446
-├── ticketmaster_assign_ticket_number    # 行 5845
-├── ticketmaster_captcha                 # 行 5914
-└── ticketmaster_promo                   # 行 1872
+├── ticketmaster_date_auto_select
+├── ticketmaster_area_auto_select
+├── get_ticketmaster_target_area
+├── ticketmaster_assign_ticket_number
+├── ticketmaster_captcha
+└── ticketmaster_promo
 ```
 
 ### 🏙️ **Cityline**
@@ -236,65 +237,64 @@ Cityline 主流程
 #### Chrome
 ```
 Cityline 主流程
-├── cityline_main                        # 行 6777
-├── cityline_login                       # 行 5363
-├── cityline_date_auto_select            # 行 4343
-├── cityline_area_auto_select            # 行 4457
-├── cityline_ticket_number_auto_select   # 行 4604
-├── cityline_purchase_button_press       # 行 4693
-├── cityline_next_button_press           # 行 4718
-├── cityline_performance                 # 行 4754
-└── cityline_input_code                  # 行 6733
+├── cityline_main
+├── cityline_login
+├── cityline_date_auto_select
+├── cityline_area_auto_select
+├── cityline_ticket_number_auto_select
+├── cityline_purchase_button_press
+├── cityline_next_button_press
+├── cityline_performance
+└── cityline_input_code
 ```
 
 ### 💳 **iBon**
 
-#### ZenDriver （🥇 金級實作 - 95% 完整度）
+#### ZenDriver (`platforms/ibon.py`)（🥇 金級實作 - 95% 完整度）
 ```
 iBon 主流程
-├── nodriver_ibon_login                      # 行 8094 ✅ (Cookie 登入)
-├── nodriver_ibon_date_auto_select           # 行 9393 ✅ (v1.3+ 性能優化)
-│   ├── nodriver_ibon_date_auto_select_pierce # 行 9085 (Shadow DOM 穿透)
-│   └── nodriver_ibon_date_auto_select_domsnapshot # 行 9415 (DOMSnapshot 快照)
-├── nodriver_ibon_event_area_auto_select     # 行 9774 ✅ (Angular SPA Event 頁面)
-├── nodriver_ibon_area_auto_select           # 行 10217 ✅ (舊版 .aspx 頁面)
-├── nodriver_ibon_ticket_number_auto_select  # 行 10791 ✅ (票數自動設定)
-├── nodriver_ibon_get_captcha_image_from_shadow_dom # 行 11108 ✅ (Shadow DOM 截圖)
-├── nodriver_ibon_keyin_captcha_code         # 行 11289 ✅ (驗證碼輸入)
-├── nodriver_ibon_refresh_captcha            # 行 11524 ✅ (刷新驗證碼)
-├── nodriver_ibon_auto_ocr                   # 行 11555 ✅ (OCR 自動識別)
-├── nodriver_ibon_captcha                    # 行 11714 ✅ (驗證碼主控制)
-├── nodriver_ibon_purchase_button_press      # 行 11803 ✅ (購票按鈕)
-├── nodriver_ibon_check_sold_out             # 行 11858 ✅ (售罄檢查)
-├── nodriver_ibon_wait_for_select_elements   # 行 11894 ✅ (等待選擇元素)
-├── nodriver_ibon_check_sold_out_on_ticket_page # 行 11937 ✅ (票券頁售罄檢查)
-├── nodriver_ibon_navigate_on_sold_out       # 行 12060 ✅ (售罄導航)
-├── nodriver_ibon_fill_verify_form           # 行 12122 ✅ (驗證表單填寫)
-├── nodriver_ibon_verification_question      # 行 12299 ✅ (驗證問題)
-├── nodriver_ibon_ticket_agree               # 行 9739 ✅ (同意條款)
-├── nodriver_ibon_allow_not_adjacent_seat    # 行 9745 ✅ (非連續座位)
+├── nodriver_ibon_login                      # ✅ (Cookie 登入)
+├── nodriver_ibon_date_auto_select           # ✅ (v1.3+ 性能優化)
+│   ├── nodriver_ibon_date_auto_select_pierce # (Shadow DOM 穿透)
+│   └── nodriver_ibon_date_auto_select_domsnapshot # (DOMSnapshot 快照)
+├── nodriver_ibon_event_area_auto_select     # ✅ (Angular SPA Event 頁面)
+├── nodriver_ibon_area_auto_select           # ✅ (舊版 .aspx 頁面)
+├── nodriver_ibon_ticket_number_auto_select  # ✅ (票數自動設定)
+├── nodriver_ibon_keyin_captcha_code         # ✅ (驗證碼輸入)
+├── nodriver_ibon_refresh_captcha            # ✅ (刷新驗證碼)
+├── nodriver_ibon_auto_ocr                   # ✅ (OCR 自動識別)
+├── nodriver_ibon_captcha                    # ✅ (驗證碼主控制)
+├── nodriver_ibon_purchase_button_press      # ✅ (購票按鈕)
+├── nodriver_ibon_check_sold_out             # ✅ (售罄檢查)
+├── nodriver_ibon_wait_for_select_elements   # ✅ (等待選擇元素)
+├── nodriver_ibon_check_sold_out_on_ticket_page # ✅ (票券頁售罄檢查)
+├── nodriver_ibon_navigate_on_sold_out       # ✅ (售罄導航)
+├── nodriver_ibon_fill_verify_form           # ✅ (驗證表單填寫)
+├── nodriver_ibon_verification_question      # ✅ (驗證問題)
+├── nodriver_ibon_ticket_agree               # ✅ (同意條款)
+├── nodriver_ibon_allow_not_adjacent_seat    # ✅ (非連續座位)
 │
 ├── iBon Tour 模組
-├── nodriver_tour_ibon_event_detail          # 行 12442 ✅ (Tour 活動詳情)
-├── nodriver_tour_ibon_options               # 行 12493 ✅ (Tour 選項)
-├── nodriver_tour_ibon_checkout              # 行 12629 ✅ (Tour 結帳)
+├── nodriver_tour_ibon_event_detail          # ✅ (Tour 活動詳情)
+├── nodriver_tour_ibon_options               # ✅ (Tour 選項)
+├── nodriver_tour_ibon_checkout              # ✅ (Tour 結帳)
 │
-└── nodriver_ibon_main                       # 行 12763 ✅ (主流程完整)
+└── nodriver_ibon_main                       # ✅ (主流程完整)
 ```
 
 #### Chrome
 ```
 iBon 主流程
-├── ibon_main                            # 行 7132
-├── ibon_date_auto_select                # 行 4822
-├── ibon_area_auto_select                # 行 4951
-├── ibon_ticket_number_auto_select       # 行 4636
-├── ibon_ticket_agree                    # 行 6900
-├── ibon_captcha                         # 行 7098
-├── ibon_auto_ocr                        # 行 6992
-├── ibon_keyin_captcha_code              # 行 6928
-├── ibon_purchase_button_press           # 行 5216
-└── ibon_performance                     # 行 5167
+├── ibon_main
+├── ibon_date_auto_select
+├── ibon_area_auto_select
+├── ibon_ticket_number_auto_select
+├── ibon_ticket_agree
+├── ibon_captcha
+├── ibon_auto_ocr
+├── ibon_keyin_captcha_code
+├── ibon_purchase_button_press
+└── ibon_performance
 ```
 
 ### 🎭 **Urbtix**
@@ -302,14 +302,14 @@ iBon 主流程
 #### Chrome
 ```
 Urbtix 主流程
-├── urbtix_main                          # 行 6589
-├── urbtix_login                         # 行 5376
-├── urbtix_date_auto_select              # 行 3806
-├── urbtix_area_auto_select              # 行 3960
-├── urbtix_ticket_number_auto_select     # 行 4117
-├── urbtix_purchase_ticket               # 行 3945
-├── urbtix_performance                   # 行 4285
-└── urbtix_auto_survey                   # 行 6425
+├── urbtix_main
+├── urbtix_login
+├── urbtix_date_auto_select
+├── urbtix_area_auto_select
+├── urbtix_ticket_number_auto_select
+├── urbtix_purchase_ticket
+├── urbtix_performance
+└── urbtix_auto_survey
 ```
 
 #### ZenDriver
@@ -321,107 +321,107 @@ Urbtix 主流程
 
 #### ZenDriver
 ```
-KHAM 主流程 (含 UDN 售票網、Ticket.com.tw)
-├── nodriver_kham_main                   # 行 16011 ✅
-├── nodriver_kham_login                  # 行 14685 ✅
-├── nodriver_kham_date_auto_select       # 行 15045 ✅ (Feature 003: Early Return + Fallback)
-├── nodriver_kham_go_buy_redirect        # 行 14821 ✅
-├── nodriver_kham_check_realname_dialog  # 行 14876 ✅
-├── nodriver_kham_allow_not_adjacent_seat # 行 14938 ✅
-├── nodriver_kham_switch_to_auto_seat    # 行 14955 ✅
-├── nodriver_kham_check_captcha_text_error # 行 14992 ✅
-├── nodriver_kham_product                # 行 15025 ✅
-├── nodriver_kham_area_auto_select       # 行 15421 ✅ (Feature 003: Early Return + Fallback)
-├── nodriver_kham_keyin_captcha_code     # 行 15309 ✅
-├── nodriver_kham_auto_ocr              # 行 15816 ✅
-├── nodriver_kham_captcha                # 行 15890 ✅
-├── nodriver_kham_performance            # 行 15934 ✅
+KHAM 主流程 (含 UDN 售票網、Ticket.com.tw)，檔案：src/platforms/kham.py
+├── nodriver_kham_main                   # ✅
+├── nodriver_kham_login                  # ✅
+├── nodriver_kham_date_auto_select       # ✅ (Feature 003: Early Return + Fallback；#357 群組項目頁共用)
+├── nodriver_kham_go_buy_redirect        # ✅
+├── nodriver_kham_check_realname_dialog  # ✅
+├── nodriver_kham_allow_not_adjacent_seat # ✅
+├── nodriver_kham_switch_to_auto_seat    # ✅
+├── nodriver_kham_check_captcha_text_error # ✅
+├── nodriver_kham_product                # ✅
+├── nodriver_kham_area_auto_select       # ✅ (Feature 003: Early Return + Fallback)
+├── nodriver_kham_keyin_captcha_code     # ✅
+├── nodriver_kham_auto_ocr              # ✅
+├── nodriver_kham_captcha                # ✅
+├── nodriver_kham_performance            # ✅
 │
 ├── 座位選擇模組 (KHAM/UDN/Ticket.com.tw 共用)
-├── nodriver_kham_seat_main              # 行 18305 ✅ 座位選擇主流程
-├── nodriver_kham_seat_auto_select       # 行 17941 ✅ 座位自動選擇核心
-├── nodriver_kham_seat_type_auto_select  # 行 17616 ✅ 票種自動選擇
+├── nodriver_kham_seat_main              # ✅ 座位選擇主流程
+├── nodriver_kham_seat_auto_select       # ✅ 座位自動選擇核心
+├── nodriver_kham_seat_type_auto_select  # ✅ 票種自動選擇
 │
 ├── UDN 專屬座位選擇模組
-├── nodriver_udn_seat_auto_select        # 行 18538 ✅ UDN 座位自動選擇
-├── nodriver_udn_seat_select_ticket_type # 行 18658 ✅ UDN 票種選擇
-└── nodriver_udn_seat_main              # 行 18798 ✅ UDN 座位選擇主流程
+├── nodriver_udn_seat_auto_select        # ✅ UDN 座位自動選擇
+├── nodriver_udn_seat_select_ticket_type # ✅ UDN 票種選擇
+└── nodriver_udn_seat_main              # ✅ UDN 座位選擇主流程
 ```
 
 #### Chrome
 ```
 KHAM 主流程
-├── kham_main                            # 行 9644
-├── kham_login                           # 行 5492
-├── hkam_date_auto_select                # 行 8463
-├── kham_go_buy_redirect                 # 行 8449
-├── kham_product                         # 行 8646
-├── kham_area_auto_select                # 行 8662
-├── kham_switch_to_auto_seat             # 行 9230
-├── kham_performance                     # 行 9307
-├── kham_keyin_captcha_code              # 行 9359
-├── kham_auto_ocr                        # 行 9426
-├── kham_captcha                         # 行 9532
-├── kham_check_captcha_text_error        # 行 9565
-├── kham_check_realname_dialog           # 行 9592
-└── kham_allow_not_adjacent_seat         # 行 9623
+├── kham_main
+├── kham_login
+├── hkam_date_auto_select
+├── kham_go_buy_redirect
+├── kham_product
+├── kham_area_auto_select
+├── kham_switch_to_auto_seat
+├── kham_performance
+├── kham_keyin_captcha_code
+├── kham_auto_ocr
+├── kham_captcha
+├── kham_check_captcha_text_error
+├── kham_check_realname_dialog
+└── kham_allow_not_adjacent_seat
 ```
 
 **UDN 專屬說明**：
 - UDN 與 KHAM 共用 UTK 後端，座位選擇邏輯完全複用
-- UDN 座位選擇模組：`nodriver_udn_seat_auto_select` (行 18538)、`nodriver_udn_seat_select_ticket_type` (行 18658)、`nodriver_udn_seat_main` (行 18798)
+- UDN 座位選擇模組：`nodriver_udn_seat_auto_select`、`nodriver_udn_seat_select_ticket_type`、`nodriver_udn_seat_main`
 - 支援 Feature 003 遞補機制：`date_auto_fallback`、`area_auto_fallback`
 
 ### 🎫 **HK Ticketing**
 
-#### ZenDriver
+#### ZenDriver (`platforms/hkticketing.py`)
 ```
 HKTicketing 主流程
-├── nodriver_hkticketing_main           # 行 23131
-├── nodriver_hkticketing_login          # 行 20778
-├── nodriver_hkticketing_accept_cookie  # 行 20919
-├── nodriver_hkticketing_date_buy_button_press # 行 20931
-├── nodriver_hkticketing_date_assign    # 行 21004
-├── nodriver_hkticketing_date_password_input # 行 21183
-├── nodriver_hkticketing_date_auto_select # 行 21232
-├── nodriver_hkticketing_area_auto_select # 行 21273
-├── nodriver_hkticketing_ticket_number_auto_select # 行 21510
-├── nodriver_hkticketing_ticket_delivery_option # 行 21558
-├── nodriver_hkticketing_next_button_press # 行 21598
-├── nodriver_hkticketing_go_to_payment  # 行 21662
-├── nodriver_hkticketing_hide_tickets_blocks # 行 21709
-├── nodriver_hkticketing_performance    # 行 22921
-├── nodriver_hkticketing_escape_robot_detection # 行 22955
-├── nodriver_hkticketing_url_redirect   # 行 22972
-├── nodriver_hkticketing_content_refresh # 行 23032
-├── nodriver_hkticketing_travel_iframe  # 行 23080
+├── nodriver_hkticketing_main
+├── nodriver_hkticketing_login
+├── nodriver_hkticketing_accept_cookie
+├── nodriver_hkticketing_date_buy_button_press
+├── nodriver_hkticketing_date_assign
+├── nodriver_hkticketing_date_password_input
+├── nodriver_hkticketing_date_auto_select
+├── nodriver_hkticketing_area_auto_select
+├── nodriver_hkticketing_ticket_number_auto_select
+├── nodriver_hkticketing_ticket_delivery_option
+├── nodriver_hkticketing_next_button_press
+├── nodriver_hkticketing_go_to_payment
+├── nodriver_hkticketing_hide_tickets_blocks
+├── nodriver_hkticketing_performance
+├── nodriver_hkticketing_escape_robot_detection
+├── nodriver_hkticketing_url_redirect
+├── nodriver_hkticketing_content_refresh
+├── nodriver_hkticketing_travel_iframe
 │
 ├── HKTicketing Type02 模組 (新版網站)
-├── nodriver_hkticketing_type02_clear_session # 行 21735 ✅
-├── nodriver_hkticketing_type02_check_traffic_overload # 行 21792 ✅
-├── nodriver_hkticketing_type02_login   # 行 21851 ✅
-├── nodriver_hkticketing_type02_dismiss_modal # 行 22003 ✅
-├── nodriver_hkticketing_type02_event_page_buy_button # 行 22053 ✅
-├── nodriver_hkticketing_type02_event_page # 行 22114 ✅
-├── nodriver_hkticketing_type02_date_assign # 行 22144 ✅
-├── nodriver_hkticketing_type02_area_auto_select # 行 22324 ✅
-├── nodriver_hkticketing_type02_ticket_number_select # 行 22463 ✅
-├── nodriver_hkticketing_type02_next_button_press # 行 22558 ✅
-├── nodriver_hkticketing_type02_performance # 行 22594 ✅
-└── nodriver_hkticketing_type02_confirm_order # 行 22644 ✅
+├── nodriver_hkticketing_type02_clear_session # ✅
+├── nodriver_hkticketing_type02_check_traffic_overload # ✅
+├── nodriver_hkticketing_type02_login   # ✅
+├── nodriver_hkticketing_type02_dismiss_modal # ✅
+├── nodriver_hkticketing_type02_event_page_buy_button # ✅
+├── nodriver_hkticketing_type02_event_page # ✅
+├── nodriver_hkticketing_type02_date_assign # ✅
+├── nodriver_hkticketing_type02_area_auto_select # ✅
+├── nodriver_hkticketing_type02_ticket_number_select # ✅
+├── nodriver_hkticketing_type02_next_button_press # ✅
+├── nodriver_hkticketing_type02_performance # ✅
+└── nodriver_hkticketing_type02_confirm_order # ✅
 ```
 
 #### Chrome
 ```
 HK Ticketing 功能 (無獨立 main)
-├── hkticketing_login                    # 行 5596
-├── hkticketing_date_auto_select         # 行 7592
-├── hkticketing_date_assign              # 行 7388
-├── hkticketing_area_auto_select         # 行 7676
-├── hkticketing_ticket_number_auto_select # 行 7816
-├── hkticketing_performance              # 行 7953
-├── hkticketing_next_button_press        # 行 7833
-└── hkticketing_go_to_payment            # 行 7856
+├── hkticketing_login
+├── hkticketing_date_auto_select
+├── hkticketing_date_assign
+├── hkticketing_area_auto_select
+├── hkticketing_ticket_number_auto_select
+├── hkticketing_performance
+├── hkticketing_next_button_press
+└── hkticketing_go_to_payment
 ```
 
 ### ➕ **TicketPlus**
@@ -452,16 +452,16 @@ TicketPlus 主流程
 #### Chrome
 ```
 TicketPlus 主流程
-├── ticketplus_main                      # 行 11238
-├── ticketplus_account_sign_in           # 行 11085
-├── ticketplus_account_auto_fill         # 行 11005
-├── ticketplus_date_auto_select          # 行 9862
-├── ticketplus_assign_ticket_number      # 行 10030
-├── ticketplus_order_expansion_auto_select # 行 10104
-├── ticketplus_ticket_agree              # 行 11196
-├── ticketplus_auto_ocr                  # 行 10732
-├── ticketplus_keyin_captcha_code        # 行 10892
-└── ticketplus_order_ocr                 # 行 10691
+├── ticketplus_main
+├── ticketplus_account_sign_in
+├── ticketplus_account_auto_fill
+├── ticketplus_date_auto_select
+├── ticketplus_assign_ticket_number
+├── ticketplus_order_expansion_auto_select
+├── ticketplus_ticket_agree
+├── ticketplus_auto_ocr
+├── ticketplus_keyin_captcha_code
+└── ticketplus_order_ocr
 ```
 
 ### 🎪 **FamiTicket 全家** (🏅 白金級 - v2025.11.24 完整實作)
@@ -483,13 +483,13 @@ FamiTicket 主流程
 #### Chrome
 ```
 FamiTicket 主流程
-├── famiticket_main                      # 行 6250
-├── fami_login                           # 行 6243
-├── fami_date_auto_select                # 行 3321
-├── fami_area_auto_select                # 行 3455
-├── fami_verify                          # 行 3239
-├── fami_activity                        # 行 3277
-└── fami_home_auto_select                # 行 3651
+├── famiticket_main
+├── fami_login
+├── fami_date_auto_select
+├── fami_area_auto_select
+├── fami_verify
+├── fami_activity
+└── fami_home_auto_select
 ```
 
 **FamiTicket ZenDriver 功能特點**：
@@ -553,11 +553,11 @@ Fansigo 主流程
 #### Chrome
 ```
 其他平台
-├── ticket_login (Ticket.com.tw)         # 行 5501
-├── udn_login (UDN)                      # 行 5562
-├── facebook_login                       # 行 5296
-├── facebook_main                        # 行 11328
-└── softix_powerweb_main                 # 行 8239
+├── ticket_login (Ticket.com.tw)
+├── udn_login (UDN)
+├── facebook_login
+├── facebook_main
+└── softix_powerweb_main
 ```
 
 #### ZenDriver
@@ -565,16 +565,16 @@ Fansigo 主流程
 其他平台
 ├── nodriver_facebook_login              # platforms/facebook.py
 ├── nodriver_facebook_main               # platforms/facebook.py
-├── nodriver_ticket_login                # nodriver_tixcraft.py
+├── nodriver_ticket_login                # platforms/kham.py
 │
-├── 年代售票 座位選擇模組
-├── nodriver_ticket_seat_type_auto_select # 行 18866
-├── nodriver_ticket_seat_auto_select     # 行 19891
-├── nodriver_ticket_seat_main            # 行 19938
-├── nodriver_ticket_check_seat_taken_dialog # 行 20168
-├── nodriver_ticket_close_dialog_with_retry # 行 20218
-├── nodriver_ticket_allow_not_adjacent_seat # 行 20263
-└── nodriver_ticket_switch_to_auto_seat  # 行 20303
+├── 年代售票 座位選擇模組 (platforms/kham.py)
+├── nodriver_ticket_seat_type_auto_select
+├── nodriver_ticket_seat_auto_select
+├── nodriver_ticket_seat_main
+├── nodriver_ticket_check_seat_taken_dialog
+├── nodriver_ticket_close_dialog_with_retry
+├── nodriver_ticket_allow_not_adjacent_seat
+└── nodriver_ticket_switch_to_auto_seat
 ```
 
 ### 🔧 **共用工具函數**
@@ -582,133 +582,137 @@ Fansigo 主流程
 #### ZenDriver
 ```
 OCR 相關
-├── nodriver_tixcraft_get_ocr_answer     # 行 5684
-└── nodriver_force_check_checkbox        # 行 260
+├── nodriver_tixcraft_get_ocr_answer     # platforms/tixcraft.py
+└── nodriver_force_check_checkbox        # nodriver_common.py
 
 Cloudflare Turnstile
-├── detect_cloudflare_challenge          # 行 350 ✅ (Cloudflare Turnstile 三層偵測)
-├── _find_cf_iframe_in_dom              # 行 413 ✅ (DOM 樹遞迴搜尋 CF iframe)
-├── _cdp_click                          # 行 446 ✅ (CDP 滑鼠事件封裝)
-└── handle_cloudflare_challenge         # 行 459 ✅ (Cloudflare Turnstile 三階段處理)
+├── detect_cloudflare_challenge          # nodriver_common.py ✅ (Cloudflare Turnstile 三層偵測)
+├── _find_cf_iframe_in_dom              # nodriver_common.py ✅ (DOM 樹遞迴搜尋 CF iframe)
+├── _cdp_click                          # nodriver_common.py ✅ (CDP 滑鼠事件封裝)
+└── handle_cloudflare_challenge         # nodriver_common.py ✅ (Cloudflare Turnstile 三階段處理)
 
 輔助工具
-├── play_sound_while_ordering            # 行 154
-├── send_discord_notification            # 行 159
-├── send_telegram_notification           # 行 172
-├── nodriver_press_button                # 行 190
-├── nodriver_check_checkbox              # 行 206
-├── nodriver_check_checkbox_enhanced     # 行 293
-├── nodriver_get_text_by_selector        # 行 3014
-├── nodriver_goto_homepage               # 行 751
-├── nodriver_resize_window               # 行 20545
-├── nodriver_current_url                 # 行 20556
-├── nodriver_overwrite_prefs             # 行 20591
-└── cli                                  # 行 26289
+├── play_sound_while_ordering            # nodriver_common.py
+├── send_discord_notification            # nodriver_common.py
+├── send_telegram_notification           # nodriver_common.py
+├── nodriver_press_button                # nodriver_common.py
+├── nodriver_check_checkbox              # nodriver_common.py
+├── nodriver_check_checkbox_enhanced     # nodriver_common.py
+├── nodriver_get_text_by_selector        # nodriver_common.py
+├── nodriver_goto_homepage               # nodriver_tixcraft.py
+├── nodriver_resize_window               # nodriver_common.py
+├── nodriver_current_url                 # nodriver_common.py
+├── nodriver_overwrite_prefs             # nodriver_common.py
+└── cli                                  # nodriver_tixcraft.py
 ```
 
 #### util.py 共用函數
 ```
 Debug 輸出
-├── DebugLogger                          # class (行 1273) ✅ 統一除錯訊息管理
-├── create_debug_logger(config_dict)     # factory (行 1291) ✅ 建立 DebugLogger 實例
-└── get_debug_mode                       # 行 1245 ✅ 安全讀取 debug 模式設定
+├── DebugLogger                          # class ✅ 統一除錯訊息管理
+├── create_debug_logger(config_dict)     # factory ✅ 建立 DebugLogger 實例
+└── get_debug_mode                       # ✅ 安全讀取 debug 模式設定
 
 選擇模式與關鍵字處理
-├── is_text_match_keyword                # 行 174 ✅ 關鍵字比對核心
-├── get_matched_blocks_by_keyword        # 行 1334 ✅ 區域/日期關鍵字匹配
-├── get_matched_blocks_by_keyword_item_set # 行 1129 ✅ 關鍵字集合匹配
-├── get_target_index_by_mode             # 行 1176 ✅ 選擇模式索引計算
-├── get_target_item_from_matched_list    # 行 1224 ✅ 從匹配列表取得目標項目
-├── parse_keyword_string_to_array        # 行 1296 ✅ 統一 JSON 關鍵字解析
-├── is_row_match_keyword                 # 行 1345 ✅ 行匹配檢查
-└── reset_row_text_if_match_keyword_exclude # 行 1379 ✅ 排除關鍵字匹配檢查
+├── is_text_match_keyword                # ✅ 關鍵字比對核心
+├── get_matched_blocks_by_keyword        # ✅ 區域/日期關鍵字匹配
+├── get_matched_blocks_by_keyword_item_set # ✅ 關鍵字集合匹配
+├── get_target_index_by_mode             # ✅ 選擇模式索引計算
+├── get_target_item_from_matched_list    # ✅ 從匹配列表取得目標項目
+├── parse_keyword_string_to_array        # ✅ 統一 JSON 關鍵字解析
+├── is_row_match_keyword                 # ✅ 行匹配檢查
+└── reset_row_text_if_match_keyword_exclude # ✅ 排除關鍵字匹配檢查
 
 字串處理
-├── format_keyword_for_display           # 行 112
-├── format_config_keyword_for_json       # 行 132
-├── format_keyword_string                # 行 314
-├── format_quota_string                  # 行 325
-├── full2half                            # 行 351
-├── find_between                         # 行 83
-├── remove_html_tags                     # 行 74
-├── find_continuous_number               # 行 408
-├── find_continuous_text                 # 行 412
-├── find_continuous_pattern              # 行 416
-├── is_all_alpha_or_numeric              # 行 431
-└── convert_string_to_pattern            # 行 473
+├── format_keyword_for_display
+├── format_config_keyword_for_json
+├── format_keyword_string
+├── format_quota_string
+├── full2half
+├── find_between
+├── remove_html_tags
+├── find_continuous_number
+├── find_continuous_text
+├── find_continuous_pattern
+├── is_all_alpha_or_numeric
+└── convert_string_to_pattern
 
 中文數字處理
-├── get_chinese_numeric                  # 行 364
-├── synonym_dict                         # 行 379
-├── chinese_numeric_to_int               # 行 388
-└── normalize_chinese_numeric            # 行 400
+├── get_chinese_numeric
+├── synonym_dict
+├── chinese_numeric_to_int
+└── normalize_chinese_numeric
 
 OCR 與驗證碼
-├── guess_answer_list_from_multi_options # 行 515
-├── guess_answer_list_from_symbols       # 行 685
-├── get_offical_hint_string_from_symbol  # 行 717
-├── guess_answer_list_from_hint          # 行 755
-├── format_question_string               # 行 1000
-├── permutations                         # 行 1049
-├── get_answer_list_by_question          # 行 1072
-├── check_answer_keep_symbol             # 行 1506
-├── kktix_get_web_datetime               # 行 1548
-├── get_answer_string_from_web_date      # 行 1600
-├── get_answer_string_from_web_time      # 行 1723
-├── get_answer_list_from_question_string # 行 1809
-├── guess_tixcraft_question              # 行 1384
-├── get_answer_list_from_user_guess_string # 行 1423
-└── extract_answer_by_question_pattern   # 行 1455
+├── guess_answer_list_from_multi_options
+├── guess_answer_list_from_symbols
+├── get_offical_hint_string_from_symbol
+├── guess_answer_list_from_hint
+├── format_question_string
+├── permutations
+├── get_answer_list_by_question
+├── check_answer_keep_symbol
+├── kktix_get_web_datetime
+├── get_answer_string_from_web_date
+├── get_answer_string_from_web_time
+├── get_answer_list_from_question_string
+├── guess_tixcraft_question
+├── get_answer_list_from_user_guess_string
+└── extract_answer_by_question_pattern
 
 音訊與通知
-├── play_mp3_async                       # 行 279
-├── play_mp3                             # 行 282
-├── build_discord_message                # 行 2190 ✅ Discord 訊息建構
-├── send_discord_webhook                 # 行 2217 ✅ Discord Webhook 同步發送
-├── send_discord_webhook_async           # 行 2260 ✅ Discord Webhook 非同步發送
-├── build_telegram_message               # 行 2292 ✅ Telegram 訊息建構 (v2026.03)
-├── send_telegram_message                # 行 2316 ✅ Telegram Bot 同步發送 (v2026.03)
-└── send_telegram_message_async          # 行 2365 ✅ Telegram Bot 非同步發送 (v2026.03)
+├── play_mp3_async
+├── play_mp3
+├── build_discord_message                # ✅ Discord 訊息建構
+├── send_discord_webhook                 # ✅ Discord Webhook 同步發送
+├── send_discord_webhook_async           # ✅ Discord Webhook 非同步發送
+├── build_telegram_message               # ✅ Telegram 訊息建構 (v2026.03)
+├── send_telegram_message                # ✅ Telegram Bot 同步發送 (v2026.03)
+└── send_telegram_message_async          # ✅ Telegram Bot 非同步發送 (v2026.03)
 
 檔案 I/O
-├── save_json                            # 行 231
-├── write_string_to_file                 # 行 239
-├── save_url_to_file                     # 行 249
-└── force_remove_file                    # 行 297
+├── save_json
+├── write_string_to_file
+├── save_url_to_file
+└── force_remove_file
 
 系統工具
-├── get_ip_address                       # 行 27
-├── is_connectable                       # 行 56
-├── is_arm                               # 行 93
-├── get_app_root                         # 行 99
-├── t_or_f                               # 行 305
-├── get_brave_bin_path                   # 行 452
-├── launch_maxbot                        # 行 2050
-├── parse_nodriver_result                # 行 2100
-└── get_token                            # 行 2183
+├── get_ip_address
+├── is_connectable
+├── is_arm
+├── get_app_root
+├── t_or_f
+├── get_brave_bin_path
+├── launch_maxbot
+├── parse_nodriver_result
+└── get_token
 
 KKTIX 專用
-├── kktix_get_registerStatus             # 行 2001
-└── kktix_get_event_code                 # 行 2036
+├── kktix_get_registerStatus
+└── kktix_get_event_code
 
 Cloudflare 模板匹配
-├── get_cf_template_paths                # 行 2398
-└── verify_cf_with_templates             # 行 2426
+├── get_cf_template_paths
+└── verify_cf_with_templates
 
 iBon Livemap
-├── ibon_fetch_and_parse_livemap         # 行 2494
-├── ibon_livemap_select_area             # 行 2548
-└── ibon_build_skip_url                  # 行 2593
+├── ibon_fetch_and_parse_livemap
+├── ibon_livemap_select_area
+└── ibon_build_skip_url
 ```
+
+**機制索引**：
+- 設定熱重載（hot-reload）：`reload_config`（nodriver_tixcraft.py），詳見 [14-hot-reload.md](../03-mechanisms/14-hot-reload.md)
+- Cloudflare Turnstile：`detect_cloudflare_challenge` / `handle_cloudflare_challenge`（nodriver_common.py），詳見 [15-cloudflare-turnstile.md](../03-mechanisms/15-cloudflare-turnstile.md)
 
 ### 🛑 **暫停機制輔助函數** (ZenDriver 專用)
 
-> **位置**: `src/nodriver_tixcraft.py:7406-7470`
+> **位置**: `src/nodriver_common.py`
 
 #### 核心暫停檢查函數
 
 ```
-check_and_handle_pause(config_dict)      # 行 7406 ✅
+check_and_handle_pause(config_dict)      # ✅
 └── 統一暫停檢查入口
     ├── 檢查 MAXBOT_INT28_IDLE.txt
     ├── 根據 verbose 顯示訊息
@@ -724,22 +728,22 @@ check_and_handle_pause(config_dict)      # 行 7406 ✅
 #### 暫停輔助包裝函數
 
 ```
-sleep_with_pause_check(tab, seconds, config_dict)              # 行 7420 ✅
+sleep_with_pause_check(tab, seconds, config_dict)              # ✅
 ├── 取代 tab.sleep()
 ├── 等待期間檢查暫停狀態
 └── 返回 True (暫停中) / False (正常)
 
-asyncio_sleep_with_pause_check(seconds, config_dict)           # 行 7427 ✅
+asyncio_sleep_with_pause_check(seconds, config_dict)           # ✅
 ├── 取代 asyncio.sleep()
 ├── 不需要 tab 物件的純延遲
 └── 返回 True (暫停中) / False (正常)
 
-evaluate_with_pause_check(tab, javascript_code, config_dict)   # 行 7435 ✅
+evaluate_with_pause_check(tab, javascript_code, config_dict)   # ✅
 ├── JavaScript 執行前檢查暫停
 ├── 暫停時返回 None
 └── 正常時返回 JavaScript 執行結果
 
-with_pause_check(task_func, config_dict, *args, **kwargs)      # 行 7449 ✅
+with_pause_check(task_func, config_dict, *args, **kwargs)      # ✅
 ├── 包裝長時間任務
 ├── 支援中途暫停（每 50ms 檢查一次）
 └── 暫停時取消任務並返回 None
@@ -761,20 +765,20 @@ with_pause_check(task_func, config_dict, *args, **kwargs)      # 行 7449 ✅
 
 ### 📊 **平台實作狀態一覽**
 
-| 平台 | Chrome 行數範圍 | ZenDriver 行數範圍 | 完整度 |
-|------|:---------------:|:-----------------:|:------:|
-| TixCraft | 967-5952 | platforms/tixcraft.py | ✅/✅ |
-| KKTIX | 2419-6117 | platforms/kktix.py | ✅/✅ |
-| TicketPlus | 9862-11238 | platforms/ticketplus.py | ✅/✅ |
-| KHAM 寬宏 | 5492-9644 | platforms/kham.py | ✅/✅ |
-| TicketMaster | 1204-5914 | platforms/tixcraft.py | ✅/✅ |
-| Cityline | 4343-6777 | platforms/cityline.py | ✅/✅ |
-| iBon | 4636-7132 | platforms/ibon.py | ✅/🥇 |
-| FamiTicket | 3321-6250 | platforms/famiticket.py | ✅/🏅 |
-| HK Ticketing | 5596-7953 | platforms/hkticketing.py | ✅/🏅 |
-| FunOne | - | platforms/funone.py | -/✅ |
-| Fansigo | - | platforms/fansigo.py | -/✅ |
-| Urbtix | 3806-6589 | 未實作 | ✅/❌ |
+| 平台 | ZenDriver 檔案 | 完整度 |
+|------|:-----------------:|:------:|
+| TixCraft | platforms/tixcraft.py | ✅/✅ |
+| KKTIX | platforms/kktix.py | ✅/✅ |
+| TicketPlus | platforms/ticketplus.py | ✅/✅ |
+| KHAM 寬宏 | platforms/kham.py | ✅/✅ |
+| TicketMaster | platforms/tixcraft.py | ✅/✅ |
+| Cityline | platforms/cityline.py | ✅/✅ |
+| iBon | platforms/ibon.py | ✅/🥇 |
+| FamiTicket | platforms/famiticket.py | ✅/🏅 |
+| HK Ticketing | platforms/hkticketing.py | ✅/🏅 |
+| FunOne | platforms/funone.py | -/✅ |
+| Fansigo | platforms/fansigo.py | -/✅ |
+| Urbtix | 未實作 | ✅/❌ |
 
 ---
 
@@ -797,7 +801,6 @@ with_pause_check(task_func, config_dict, *args, **kwargs)      # 行 7449 ✅
 | Fansigo | 0 | 9 | 100% | ✅ **ZenDriver 完整** |
 
 **總計：ZenDriver 239 個函式，實際可用度：約 90%**
-**最新檔案大小：nodriver_tixcraft.py (19,049 行)**
 
 **🎯 重要更新：八大主流平台（TixCraft、KKTIX、TicketPlus、iBon、KHAM、FamiTicket、FunOne、Fansigo）ZenDriver 版本已完全可用**
 **ℹ️ 備註：TicketPlus ZenDriver 版本缺少 4 個 OCR 函式，但目前活動無 OCR 需求，暫不影響使用**
@@ -953,26 +956,26 @@ with_pause_check(task_func, config_dict, *args, **kwargs)      # 行 7449 ✅
 - `tixcraft_assign_ticket_number()` - 設定票券數量
 - `tixcraft_ticket_main()` - 票券頁面主處理
 
-### ZenDriver 版本 (19個函式)
-- `async nodriver_tixcraft_main()` - 主控制器 ✅ (Line 5878)
-- `async nodriver_tixcraft_home_close_window()` - 關閉彈窗 ✅ (Line 3004)
-- `async nodriver_tixcraft_redirect()` - 頁面重定向 ✅ (Line 3031)
-- `async nodriver_tixcraft_date_auto_select()` - 自動選擇日期 ✅ (Line 4564)
-- `async nodriver_get_tixcraft_target_area()` - 取得目標區域 ✅ (Line 4992)
-- `async nodriver_tixcraft_area_auto_select()` - 自動選擇區域 ✅ (Line 4871)
-- `async nodriver_tixcraft_verify()` - 驗證處理 ✅ (Line 4396)
-- `async nodriver_fill_verify_form()` - 填寫驗證表單 ✅ (Line 4400)
-- `async nodriver_tixcraft_input_check_code()` - 輸入驗證碼 ✅ (Line 4531)
-- `async nodriver_tixcraft_toast()` - 顯示提示訊息 ✅ (Line 5652)
-- `async nodriver_tixcraft_keyin_captcha_code()` - 手動輸入驗證碼 ✅ (Line 5520)
-- `async nodriver_tixcraft_reload_captcha()` - 重新載入驗證碼 ✅ (Line 5666)
-- `async nodriver_tixcraft_get_ocr_answer()` - OCR 識別 ✅ (Line 5684)
-- `async nodriver_tixcraft_auto_ocr()` - 自動 OCR ✅ (Line 5738)
-- `async nodriver_tixcraft_ticket_main_agree()` - 勾選同意條款 ✅ (Line 5443)
-- `async nodriver_tixcraft_assign_ticket_number()` - 設定票券數量 ✅ (Line 5189)
-- `async nodriver_tixcraft_ticket_main()` - 票券頁面主處理 ✅ (Line 5459)
-- `async nodriver_tixcraft_ticket_main_ocr()` - 票券頁面 OCR ✅ (Line 5800)
-- `async nodriver_ticket_number_select_fill()` - 填入票券數量 ✅ (Line 5113)
+### ZenDriver 版本 (19個函式, platforms/tixcraft.py)
+- `async nodriver_tixcraft_main()` - 主控制器 ✅
+- `async nodriver_tixcraft_home_close_window()` - 關閉彈窗 ✅
+- `async nodriver_tixcraft_redirect()` - 頁面重定向 ✅
+- `async nodriver_tixcraft_date_auto_select()` - 自動選擇日期 ✅
+- `async nodriver_get_tixcraft_target_area()` - 取得目標區域 ✅
+- `async nodriver_tixcraft_area_auto_select()` - 自動選擇區域 ✅
+- `async nodriver_tixcraft_verify()` - 驗證處理 ✅
+- `async nodriver_fill_verify_form()` - 填寫驗證表單 ✅
+- `async nodriver_tixcraft_input_check_code()` - 輸入驗證碼 ✅
+- `async nodriver_tixcraft_toast()` - 顯示提示訊息 ✅
+- `async nodriver_tixcraft_keyin_captcha_code()` - 手動輸入驗證碼 ✅
+- `async nodriver_tixcraft_reload_captcha()` - 重新載入驗證碼 ✅
+- `async nodriver_tixcraft_get_ocr_answer()` - OCR 識別 ✅
+- `async nodriver_tixcraft_auto_ocr()` - 自動 OCR ✅
+- `async nodriver_tixcraft_ticket_main_agree()` - 勾選同意條款 ✅
+- `async nodriver_tixcraft_assign_ticket_number()` - 設定票券數量 ✅
+- `async nodriver_tixcraft_ticket_main()` - 票券頁面主處理 ✅
+- `async nodriver_tixcraft_ticket_main_ocr()` - 票券頁面 OCR ✅
+- `async nodriver_ticket_number_select_fill()` - 填入票券數量 ✅
 
 ### Tixcraft 差異分析
 ✅ **已實作：19/17** (函式數量完整，品質優良)
@@ -1035,7 +1038,7 @@ with_pause_check(task_func, config_dict, *args, **kwargs)      # 行 7449 ✅
 **🎯 重大更新記錄：**
 - **2025.11.03**: 新增 KKTIX 自動答題功能（Feature Branch: 004-kktix-auto-answer）
   - 功能：自動偵測 KKTIX 驗證問題、推測答案、模擬人類填寫
-  - 實作位置：`nodriver_kktix_reg_captcha()` (Line 1411)
+  - 實作位置：`nodriver_kktix_reg_captcha()`
   - 核心機制：
     - 問題偵測與記錄（自動寫入 question.txt）
     - 答案推測邏輯（複用 util.py 函數）
@@ -1058,15 +1061,15 @@ with_pause_check(task_func, config_dict, *args, **kwargs)      # 行 7449 ✅
 - `ticket_switch_to_auto_seat()` - 切換到自動選座
 - `ticket_login()` - 登入
 
-### ZenDriver 版本 (8個函式)
-- `nodriver_ticket_login()` - 登入 (Line 17543)
-- `nodriver_ticket_seat_type_auto_select()` - 自動選擇票別 (Line 18866)
-- `nodriver_ticket_seat_auto_select()` - 自動選擇座位 (Line 19891)
-- `nodriver_ticket_seat_main()` - 座位選擇主流程 (Line 19938)
-- `nodriver_ticket_check_seat_taken_dialog()` - 座位佔用對話框 (Line 20168)
-- `nodriver_ticket_close_dialog_with_retry()` - 重試關閉對話框 (Line 20218)
-- `nodriver_ticket_allow_not_adjacent_seat()` - 允許非相鄰座位 (Line 20263)
-- `nodriver_ticket_switch_to_auto_seat()` - 切換到自動選座 (Line 20303)
+### ZenDriver 版本 (8個函式, platforms/kham.py)
+- `nodriver_ticket_login()` - 登入
+- `nodriver_ticket_seat_type_auto_select()` - 自動選擇票別
+- `nodriver_ticket_seat_auto_select()` - 自動選擇座位
+- `nodriver_ticket_seat_main()` - 座位選擇主流程
+- `nodriver_ticket_check_seat_taken_dialog()` - 座位佔用對話框
+- `nodriver_ticket_close_dialog_with_retry()` - 重試關閉對話框
+- `nodriver_ticket_allow_not_adjacent_seat()` - 允許非相鄰座位
+- `nodriver_ticket_switch_to_auto_seat()` - 切換到自動選座
 
 ### 年代售票實作狀態
 ✅ **已實作：8/7** (完整度: 100%)
@@ -1096,24 +1099,24 @@ with_pause_check(task_func, config_dict, *args, **kwargs)      # 行 7449 ✅
 - `get_tixcraft_target_area()` - 目標區域選擇
 - `assign_ticket_number_by_select()` - 透過選擇器設定票數
 
-### ZenDriver 版本 (17個函式) - ✅ **完整實作**
-- `nodriver_kham_main()` - 主控制器 (Line 16011)
-- `nodriver_kham_login()` - 登入 (Line 14685)
-- `nodriver_kham_go_buy_redirect()` - 購買重定向 (Line 14821)
-- `nodriver_kham_check_realname_dialog()` - 實名對話框 (Line 14876)
-- `nodriver_kham_allow_not_adjacent_seat()` - 非相鄰座位 (Line 14938)
-- `nodriver_kham_switch_to_auto_seat()` - 切換自動選座 (Line 14955)
-- `nodriver_kham_check_captcha_text_error()` - 驗證碼錯誤檢查 (Line 14992)
-- `nodriver_kham_product()` - 產品頁 (Line 15025)
-- `nodriver_kham_date_auto_select()` - 日期選擇 (Line 15045)
-- `nodriver_kham_keyin_captcha_code()` - 驗證碼輸入 (Line 15309)
-- `nodriver_kham_area_auto_select()` - 區域選擇 (Line 15421)
-- `nodriver_kham_auto_ocr()` - 自動 OCR (Line 15816)
-- `nodriver_kham_captcha()` - 驗證碼處理 (Line 15890)
-- `nodriver_kham_performance()` - 演出處理 (Line 15934)
-- `nodriver_kham_seat_type_auto_select()` - 票種選擇 (Line 17616)
-- `nodriver_kham_seat_auto_select()` - 座位選擇 (Line 17941)
-- `nodriver_kham_seat_main()` - 座位選擇主流程 (Line 18305)
+### ZenDriver 版本 (17個函式) - ✅ **完整實作**（檔案：`src/platforms/kham.py`）
+- `nodriver_kham_main()` - 主控制器
+- `nodriver_kham_login()` - 登入
+- `nodriver_kham_go_buy_redirect()` - 購買重定向
+- `nodriver_kham_check_realname_dialog()` - 實名對話框
+- `nodriver_kham_allow_not_adjacent_seat()` - 非相鄰座位
+- `nodriver_kham_switch_to_auto_seat()` - 切換自動選座
+- `nodriver_kham_check_captcha_text_error()` - 驗證碼錯誤檢查
+- `nodriver_kham_product()` - 產品頁
+- `nodriver_kham_date_auto_select()` - 日期選擇
+- `nodriver_kham_keyin_captcha_code()` - 驗證碼輸入
+- `nodriver_kham_area_auto_select()` - 區域選擇
+- `nodriver_kham_auto_ocr()` - 自動 OCR
+- `nodriver_kham_captcha()` - 驗證碼處理
+- `nodriver_kham_performance()` - 演出處理
+- `nodriver_kham_seat_type_auto_select()` - 票種選擇
+- `nodriver_kham_seat_auto_select()` - 座位選擇
+- `nodriver_kham_seat_main()` - 座位選擇主流程
 
 ### 寬宏售票差異分析
 ✅ **已實作：17/14** (完整度: 98%)
@@ -1143,44 +1146,43 @@ with_pause_check(task_func, config_dict, *args, **kwargs)      # 行 7449 ✅
 - `ibon_auto_ocr()` - 自動 OCR
 - `ibon_captcha()` - 驗證碼處理
 
-### ZenDriver 版本 (25個函式)
-- `async nodriver_ibon_login()` - Cookie 登入處理 ✅ (Line 8094)
-- `async nodriver_ibon_date_auto_select_pierce()` - 日期選擇 Shadow DOM 穿透 ✅ (Line 9085)
-- `async nodriver_ibon_date_auto_select()` - 日期自動選擇 ✅ (Line 9393)
-- `async nodriver_ibon_date_auto_select_domsnapshot()` - DOMSnapshot 快照 ✅ (Line 9415)
-- `async nodriver_ibon_ticket_agree()` - 同意條款 ✅ (Line 9739)
-- `async nodriver_ibon_allow_not_adjacent_seat()` - 非連續座位 ✅ (Line 9745)
-- `async nodriver_ibon_event_area_auto_select()` - Angular SPA Event 區域選擇 ✅ (Line 9774)
-- `async nodriver_ibon_area_auto_select()` - 座位區域自動選擇 ✅ (Line 10217)
-- `async nodriver_ibon_ticket_number_auto_select()` - 票數自動設定 ✅ (Line 10791)
-- `async nodriver_ibon_get_captcha_image_from_shadow_dom()` - Shadow DOM 截圖 ✅ (Line 11108)
-- `async nodriver_ibon_keyin_captcha_code()` - 驗證碼輸入 ✅ (Line 11289)
-- `async nodriver_ibon_refresh_captcha()` - 刷新驗證碼 ✅ (Line 11524)
-- `async nodriver_ibon_auto_ocr()` - OCR 自動識別 ✅ (Line 11555)
-- `async nodriver_ibon_captcha()` - 驗證碼主控制 ✅ (Line 11714)
-- `async nodriver_ibon_purchase_button_press()` - 購票按鈕 ✅ (Line 11803)
-- `async nodriver_ibon_check_sold_out()` - 售罄檢查 ✅ (Line 11858)
-- `async nodriver_ibon_wait_for_select_elements()` - 等待選擇元素 ✅ (Line 11894)
-- `async nodriver_ibon_check_sold_out_on_ticket_page()` - 票券頁售罄檢查 ✅ (Line 11937)
-- `async nodriver_ibon_navigate_on_sold_out()` - 售罄導航 ✅ (Line 12060)
-- `async nodriver_ibon_fill_verify_form()` - 驗證表單填寫 ✅ (Line 12122)
-- `async nodriver_ibon_verification_question()` - 驗證問題 ✅ (Line 12299)
-- `async nodriver_tour_ibon_event_detail()` - iBon Tour 活動詳情 ✅ (Line 12442)
-- `async nodriver_tour_ibon_options()` - iBon Tour 選項 ✅ (Line 12493)
-- `async nodriver_tour_ibon_checkout()` - iBon Tour 結帳 ✅ (Line 12629)
-- `async nodriver_ibon_main()` - 主控制器 ✅ (Line 12763)
+### ZenDriver 版本 (24個函式, platforms/ibon.py)
+- `async nodriver_ibon_login()` - Cookie 登入處理 ✅
+- `async nodriver_ibon_date_auto_select_pierce()` - 日期選擇 Shadow DOM 穿透 ✅
+- `async nodriver_ibon_date_auto_select()` - 日期自動選擇 ✅
+- `async nodriver_ibon_date_auto_select_domsnapshot()` - DOMSnapshot 快照 ✅
+- `async nodriver_ibon_ticket_agree()` - 同意條款 ✅
+- `async nodriver_ibon_allow_not_adjacent_seat()` - 非連續座位 ✅
+- `async nodriver_ibon_event_area_auto_select()` - Angular SPA Event 區域選擇 ✅
+- `async nodriver_ibon_area_auto_select()` - 座位區域自動選擇 ✅
+- `async nodriver_ibon_ticket_number_auto_select()` - 票數自動設定 ✅
+- `async nodriver_ibon_keyin_captcha_code()` - 驗證碼輸入 ✅
+- `async nodriver_ibon_refresh_captcha()` - 刷新驗證碼 ✅
+- `async nodriver_ibon_auto_ocr()` - OCR 自動識別 ✅
+- `async nodriver_ibon_captcha()` - 驗證碼主控制 ✅
+- `async nodriver_ibon_purchase_button_press()` - 購票按鈕 ✅
+- `async nodriver_ibon_check_sold_out()` - 售罄檢查 ✅
+- `async nodriver_ibon_wait_for_select_elements()` - 等待選擇元素 ✅
+- `async nodriver_ibon_check_sold_out_on_ticket_page()` - 票券頁售罄檢查 ✅
+- `async nodriver_ibon_navigate_on_sold_out()` - 售罄導航 ✅
+- `async nodriver_ibon_fill_verify_form()` - 驗證表單填寫 ✅
+- `async nodriver_ibon_verification_question()` - 驗證問題 ✅
+- `async nodriver_tour_ibon_event_detail()` - iBon Tour 活動詳情 ✅
+- `async nodriver_tour_ibon_options()` - iBon Tour 選項 ✅
+- `async nodriver_tour_ibon_checkout()` - iBon Tour 結帳 ✅
+- `async nodriver_ibon_main()` - 主控制器 ✅
 
 ### iBon 差異分析
 🥇 **實際狀態：25/15** (完整度: 95% - 金級)
 
 **✅ 已完整實作（25 個函式，核心搶票流程 100% 完成）：**
-- **登入功能** (Line 8094)：Cookie 處理、頁面重新載入和登入狀態驗證
-- **日期選擇** (Line 9085-9415)：使用 DOMSnapshot 平坦化策略穿透 closed Shadow DOM
-- **座位區域選擇** (Line 9774-10217)：支援 Angular SPA Event 頁面 + .aspx 頁面
-- **驗證碼處理** (Line 11108-11714)：Shadow DOM 截圖、OCR、輸入、重試
-- **售罄處理** (Line 11858-12060)：售罄檢查、票券頁售罄、售罄導航
-- **iBon Tour 模組** (Line 12442-12629)：活動詳情、選項、結帳
-- **同意條款** (Line 9739)：簡單但完整的勾選實作
+- **登入功能**：Cookie 處理、頁面重新載入和登入狀態驗證
+- **日期選擇**：使用 DOMSnapshot 平坦化策略穿透 closed Shadow DOM
+- **座位區域選擇**：支援 Angular SPA Event 頁面 + .aspx 頁面
+- **驗證碼處理**：Shadow DOM 截圖、OCR、輸入、重試
+- **售罄處理**：售罄檢查、票券頁售罄、售罄導航
+- **iBon Tour 模組**：活動詳情、選項、結帳
+- **同意條款**：簡單但完整的勾選實作
 
 ---
 
@@ -1203,24 +1205,24 @@ with_pause_check(task_func, config_dict, *args, **kwargs)      # 行 7449 ✅
 - `cityline_input_code()` - 輸入代碼
 - `cityline_close_second_tab()` - 關閉第二個標籤
 
-### ZenDriver 版本 (17個函式)
-- `async nodriver_cityline_main()` - 主控制器 ✅ (Line 14537)
-- `async nodriver_cityline_auto_retry_access()` - 自動重試存取 ✅ (Line 13737)
-- `async nodriver_cityline_login()` - 登入 ✅ (Line 13751)
-- `async nodriver_cityline_date_auto_select()` - 自動選擇日期 ✅ (Line 13810)
-- `async nodriver_cityline_check_login_modal()` - 登入模態框檢查 ✅ (Line 13911)
-- `async nodriver_cityline_continue_button_press()` - 繼續按鈕 ✅ (Line 14000)
-- `async nodriver_cityline_area_auto_select()` - 自動選擇區域 ✅ (Line 14056)
-- `async nodriver_cityline_ticket_number_auto_select()` - 自動選擇票數 ✅ (Line 14172)
-- `async nodriver_cityline_next_button_press()` - 下一步按鈕 ✅ (Line 14214)
-- `async nodriver_cityline_performance()` - 演出處理 ✅ (Line 14250)
-- `async nodriver_cityline_check_shopping_basket()` - 購物籃檢查 ✅ (Line 14283)
-- `async nodriver_check_modal_dialog_popup()` - 模態對話框 ✅ (Line 14317)
-- `async nodriver_cityline_purchase_button_press()` - 購買按鈕 ✅ (Line 14328)
-- `async nodriver_cityline_close_second_tab()` - 關閉第二個標籤 ✅ (Line 14354)
-- `async nodriver_cityline_cookie_accept()` - 接受 Cookie ✅ (Line 14372)
-- `async nodriver_cityline_press_buy_button()` - 購買按鈕 ✅ (Line 14404)
-- `async nodriver_cityline_clean_ads()` - 清除廣告 ✅ (Line 14484)
+### ZenDriver 版本 (17個函式, platforms/cityline.py)
+- `async nodriver_cityline_main()` - 主控制器 ✅
+- `async nodriver_cityline_auto_retry_access()` - 自動重試存取 ✅
+- `async nodriver_cityline_login()` - 登入 ✅
+- `async nodriver_cityline_date_auto_select()` - 自動選擇日期 ✅
+- `async nodriver_cityline_check_login_modal()` - 登入模態框檢查 ✅
+- `async nodriver_cityline_continue_button_press()` - 繼續按鈕 ✅
+- `async nodriver_cityline_area_auto_select()` - 自動選擇區域 ✅
+- `async nodriver_cityline_ticket_number_auto_select()` - 自動選擇票數 ✅
+- `async nodriver_cityline_next_button_press()` - 下一步按鈕 ✅
+- `async nodriver_cityline_performance()` - 演出處理 ✅
+- `async nodriver_cityline_check_shopping_basket()` - 購物籃檢查 ✅
+- `async nodriver_check_modal_dialog_popup()` - 模態對話框（nodriver_common.py 共用） ✅
+- `async nodriver_cityline_purchase_button_press()` - 購買按鈕 ✅
+- `async nodriver_cityline_close_second_tab()` - 關閉第二個標籤 ✅
+- `async nodriver_cityline_cookie_accept()` - 接受 Cookie ✅
+- `async nodriver_cityline_press_buy_button()` - 購買按鈕 ✅
+- `async nodriver_cityline_clean_ads()` - 清除廣告 ✅
 
 ### Cityline 差異分析
 ✅ **已實作：17/15** (完整度: 80%)
@@ -1284,37 +1286,37 @@ with_pause_check(task_func, config_dict, *args, **kwargs)      # 行 7449 ✅
 - `hkticketing_login()` - 登入
 - `get_ticketmaster_target_area()` - 共用目標區域取得
 
-### ZenDriver 版本 (30個函式) - v2025.11.28 新增
-- `nodriver_hkticketing_main()` - 主控制器（行 23131）
-- `nodriver_hkticketing_login()` - 登入（行 20778）
-- `nodriver_hkticketing_accept_cookie()` - 接受 Cookie（行 20919）
-- `nodriver_hkticketing_date_buy_button_press()` - 按下日期購買按鈕（行 20931）
-- `nodriver_hkticketing_date_assign()` - 指定日期（行 21004）
-- `nodriver_hkticketing_date_password_input()` - 日期密碼輸入（行 21183）
-- `nodriver_hkticketing_date_auto_select()` - 自動選擇日期（行 21232）
-- `nodriver_hkticketing_area_auto_select()` - 自動選擇區域（行 21273）
-- `nodriver_hkticketing_ticket_number_auto_select()` - 自動選擇票數（行 21510）
-- `nodriver_hkticketing_ticket_delivery_option()` - 票券配送選項（行 21558）
-- `nodriver_hkticketing_next_button_press()` - 按下下一步按鈕（行 21598）
-- `nodriver_hkticketing_go_to_payment()` - 前往付款（行 21662）
-- `nodriver_hkticketing_hide_tickets_blocks()` - 隱藏票券區塊（行 21709）
-- `nodriver_hkticketing_type02_clear_session()` - Type02 清除 Session（行 21735）
-- `nodriver_hkticketing_type02_check_traffic_overload()` - Type02 流量超載檢查（行 21792）
-- `nodriver_hkticketing_type02_login()` - Type02 登入（行 21851）
-- `nodriver_hkticketing_type02_dismiss_modal()` - Type02 關閉模態框（行 22003）
-- `nodriver_hkticketing_type02_event_page_buy_button()` - Type02 活動頁購買按鈕（行 22053）
-- `nodriver_hkticketing_type02_event_page()` - Type02 活動頁（行 22114）
-- `nodriver_hkticketing_type02_date_assign()` - Type02 日期指定（行 22144）
-- `nodriver_hkticketing_type02_area_auto_select()` - Type02 區域選擇（行 22324）
-- `nodriver_hkticketing_type02_ticket_number_select()` - Type02 票數選擇（行 22463）
-- `nodriver_hkticketing_type02_next_button_press()` - Type02 下一步按鈕（行 22558）
-- `nodriver_hkticketing_type02_performance()` - Type02 演出處理（行 22594）
-- `nodriver_hkticketing_type02_confirm_order()` - Type02 確認訂單（行 22644）
-- `nodriver_hkticketing_performance()` - 演出處理（行 22921）
-- `nodriver_hkticketing_escape_robot_detection()` - 避開機器人偵測（行 22955）
-- `nodriver_hkticketing_url_redirect()` - URL 重定向（行 22972）
-- `nodriver_hkticketing_content_refresh()` - 內容重新整理（行 23032）
-- `nodriver_hkticketing_travel_iframe()` - 遍歷 iframe（行 23080）
+### ZenDriver 版本 (30個函式, platforms/hkticketing.py) - v2025.11.28 新增
+- `nodriver_hkticketing_main()` - 主控制器
+- `nodriver_hkticketing_login()` - 登入
+- `nodriver_hkticketing_accept_cookie()` - 接受 Cookie
+- `nodriver_hkticketing_date_buy_button_press()` - 按下日期購買按鈕
+- `nodriver_hkticketing_date_assign()` - 指定日期
+- `nodriver_hkticketing_date_password_input()` - 日期密碼輸入
+- `nodriver_hkticketing_date_auto_select()` - 自動選擇日期
+- `nodriver_hkticketing_area_auto_select()` - 自動選擇區域
+- `nodriver_hkticketing_ticket_number_auto_select()` - 自動選擇票數
+- `nodriver_hkticketing_ticket_delivery_option()` - 票券配送選項
+- `nodriver_hkticketing_next_button_press()` - 按下下一步按鈕
+- `nodriver_hkticketing_go_to_payment()` - 前往付款
+- `nodriver_hkticketing_hide_tickets_blocks()` - 隱藏票券區塊
+- `nodriver_hkticketing_type02_clear_session()` - Type02 清除 Session
+- `nodriver_hkticketing_type02_check_traffic_overload()` - Type02 流量超載檢查
+- `nodriver_hkticketing_type02_login()` - Type02 登入
+- `nodriver_hkticketing_type02_dismiss_modal()` - Type02 關閉模態框
+- `nodriver_hkticketing_type02_event_page_buy_button()` - Type02 活動頁購買按鈕
+- `nodriver_hkticketing_type02_event_page()` - Type02 活動頁
+- `nodriver_hkticketing_type02_date_assign()` - Type02 日期指定
+- `nodriver_hkticketing_type02_area_auto_select()` - Type02 區域選擇
+- `nodriver_hkticketing_type02_ticket_number_select()` - Type02 票數選擇
+- `nodriver_hkticketing_type02_next_button_press()` - Type02 下一步按鈕
+- `nodriver_hkticketing_type02_performance()` - Type02 演出處理
+- `nodriver_hkticketing_type02_confirm_order()` - Type02 確認訂單
+- `nodriver_hkticketing_performance()` - 演出處理
+- `nodriver_hkticketing_escape_robot_detection()` - 避開機器人偵測
+- `nodriver_hkticketing_url_redirect()` - URL 重定向
+- `nodriver_hkticketing_content_refresh()` - 內容重新整理
+- `nodriver_hkticketing_travel_iframe()` - 遍歷 iframe
 
 ### HKTicketing 差異分析
 ✅ **已實作：30/20** (完整度: 95%)
@@ -1461,15 +1463,15 @@ with_pause_check(task_func, config_dict, *args, **kwargs)      # 行 7449 ✅
 - `ticketmaster_captcha()` - 驗證碼處理
 - `get_target_item_from_matched_list()` - 從匹配清單取得目標項目 (共用)
 
-### ZenDriver 版本 (8個函式) ✅ **2025-11-18 完成**
-- `async nodriver_ticketmaster_promo()` - 促銷代碼 ✅ (Line 4392)
-- `async nodriver_ticketmaster_parse_zone_info()` - 解析區域資訊 ✅ (Line 3254)
-- `get_ticketmaster_target_area()` - 取得目標區域 ✅ (Line 3404)
-- `async nodriver_ticketmaster_get_ticketPriceList()` - 取得票價清單 ✅ (Line 3572)
-- `async nodriver_ticketmaster_date_auto_select()` - 自動選擇日期 ✅ (Line 3668)
-- `async nodriver_ticketmaster_area_auto_select()` - 自動選擇區域 ✅ (Line 3888)
-- `async nodriver_ticketmaster_assign_ticket_number()` - 設定票券數量 ✅ (Line 3987)
-- `async nodriver_ticketmaster_captcha()` - 驗證碼處理 ✅ (Line 4121)
+### ZenDriver 版本 (8個函式, platforms/tixcraft.py) ✅ **2025-11-18 完成**
+- `async nodriver_ticketmaster_promo()` - 促銷代碼 ✅
+- `async nodriver_ticketmaster_parse_zone_info()` - 解析區域資訊 ✅
+- `get_ticketmaster_target_area()` - 取得目標區域 ✅
+- `async nodriver_ticketmaster_get_ticketPriceList()` - 取得票價清單 ✅
+- `async nodriver_ticketmaster_date_auto_select()` - 自動選擇日期 ✅
+- `async nodriver_ticketmaster_area_auto_select()` - 自動選擇區域 ✅
+- `async nodriver_ticketmaster_assign_ticket_number()` - 設定票券數量 ✅
+- `async nodriver_ticketmaster_captcha()` - 驗證碼處理 ✅
 
 ### Ticketmaster 差異分析
 ✅ **已實作：8/9** (完整度: 89%)
@@ -1490,7 +1492,7 @@ with_pause_check(task_func, config_dict, *args, **kwargs)      # 行 7449 ✅
 
 ### 實作可信度評估
 
-| 平台 | 函式數量 | 行數範圍 | 可信度 | 建議 |
+| 平台 | 函式數量 | 檔案 | 可信度 | 建議 |
 |------|----------|------------|--------|------|
 | Tixcraft | 19 | platforms/tixcraft.py | 高 | 實測通過，可直接使用 |
 | KKTIX | 17 | platforms/kktix.py | 高 | 實測通過，可直接使用 |
@@ -1540,7 +1542,7 @@ with_pause_check(task_func, config_dict, *args, **kwargs)      # 行 7449 ✅
 ## 🎯 **使用方式**
 
 1. **定位功能**：根據平台名稱找到對應函數（ZenDriver 版本優先）
-2. **跳轉代碼**：使用行號快速跳轉到具體實作
+2. **定位代碼**：依檔案歸屬開啟對應模組檔案
 3. **版本對比**：比較 ZenDriver 與 Chrome 版本差異
 4. **缺失識別**：快速識別未實作功能位置
 5. **開發優先度**：優先開發和維護 ZenDriver 版本功能
@@ -1549,8 +1551,8 @@ with_pause_check(task_func, config_dict, *args, **kwargs)      # 行 7449 ✅
 
 ---
 
-*此文件最後更新：2026-03-05（行號引用全面更新）*
-*分析基於：nodriver_tixcraft.py (19,049 行) + platforms/*.py*
+*此文件最後更新：2026-06-10（移除行號引用，改以檔案歸屬索引）*
+*分析基於：src/nodriver_tixcraft.py + src/platforms/*.py + src/nodriver_common.py*
 *整合內容：標準功能架構定義 + 平台函數索引 + 功能完整度評分 + 結構差異分析*
 *相關文件：[標準功能定義](./ticket_automation_standard.md) | [開發規範](./development_guide.md) | [程式碼範本](./coding_templates.md)*
 

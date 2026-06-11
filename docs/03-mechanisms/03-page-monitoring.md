@@ -1,7 +1,7 @@
 # 機制 03：頁面監控 (Stage 3)
 
 **文件說明**：說明搶票系統的主迴圈結構、URL 路由分派與各平台頁面監控機制
-**最後更新**：2026-03-06
+**最後更新**：2026-06-10
 
 ---
 
@@ -19,7 +19,7 @@
 
 ### 迴圈入口
 
-`main()` (行 26116) 中的 `while True` 迴圈是整個系統的心跳：
+`main()` 中的 `while True` 迴圈是整個系統的心跳：
 
 ```
 while True:
@@ -32,20 +32,20 @@ while True:
     -> URL 路由分派至各平台 _main()
 ```
 
-**實作位置**：`src/nodriver_tixcraft.py` 行 26116-26288
+**實作位置**：`src/nodriver_tixcraft.py`（main）
 
 ### URL 取得機制
 
-`nodriver_current_url()` (行 20556) 透過 `tab.js_dumps('window.location.href')` 取得當前頁面 URL。若瀏覽器連線中斷（WebSocket 500、WinError 1225 等），設定 `is_quit_bot = True` 終止程式。
+`nodriver_current_url()`（`src/nodriver_common.py`）透過 `tab.js_dumps('window.location.href')` 取得當前頁面 URL。若瀏覽器連線中斷（WebSocket 500、WinError 1225 等），設定 `is_quit_bot = True` 終止程式。
 
 ### 迴圈前置處理
 
 每次迴圈在進入平台路由前，依序執行：
 
-1. **設定熱更新** (行 26119)：`reload_config()` 監控 `settings.json` 修改時間
-2. **URL 變化偵測** (行 26154-26160)：URL 改變時印出新 URL、寫入 `MAXBOT_LAST_URL.txt`、重置 Cloudflare 狀態
-3. **暫停處理** (行 26162-26167)：暫停中僅處理 KKTIX 登入，其餘跳過
-4. **Cloudflare 偵測** (行 26169-26185)：URL 變化時檢測 Cloudflare 挑戰頁面，最多重試 3 次
+1. **設定熱更新**：`reload_config()` 監控 `settings.json` 修改時間
+2. **URL 變化偵測**：URL 改變時印出新 URL、寫入 `MAXBOT_LAST_URL.txt`、重置 Cloudflare 狀態
+3. **暫停處理**：暫停中僅處理 KKTIX 登入，其餘跳過
+4. **Cloudflare 偵測**：URL 變化時檢測 Cloudflare 挑戰頁面，最多重試 3 次
 
 ---
 
@@ -53,20 +53,20 @@ while True:
 
 主迴圈根據 URL 中的網域關鍵字，將請求分派至對應平台的 `_main` 函式：
 
-| URL 特徵 | 分派目標 | 行號 |
-|----------|---------|------|
-| `kktix.c` | `nodriver_kktix_main()` | 26188 |
-| `tixcraft.com` / `indievox.com` / `ticketmaster.` | `nodriver_tixcraft_main()` | 26208 |
-| `famiticket.com` | `nodriver_famiticket_main()` | 26220 |
-| `ibon.com` | `nodriver_ibon_main()` | 26223 |
-| `kham.com.tw` / `ticket.com.tw` / `tickets.udnfunlife.com` | `nodriver_kham_main()` | 26236 |
-| `ticketplus.com` | `nodriver_ticketplus_main()` | 26240 |
-| `urbtix.hk` | (保留，未實作) | 26259 |
-| `cityline.com` | `nodriver_cityline_main()` | 26263 |
-| `hkticketing.com` / `galaxymacau.com` / `ticketek.com` | `nodriver_hkticketing_main()` | 26273 |
-| `tickets.funone.io` | `nodriver_funone_main()` | 26277 |
-| `go.fansi.me` | `nodriver_fansigo_main()` | 26281 |
-| `facebook.com/login.php` | `nodriver_facebook_main()` | 26286 |
+| URL 特徵 | 分派目標 |
+|----------|---------|
+| `kktix.c` | `nodriver_kktix_main()` |
+| `tixcraft.com` / `indievox.com` / `ticketmaster.` | `nodriver_tixcraft_main()` |
+| `famiticket.com` | `nodriver_famiticket_main()` |
+| `ibon.com` | `nodriver_ibon_main()` |
+| `kham.com.tw` / `ticket.com.tw` / `tickets.udnfunlife.com` | `nodriver_kham_main()` |
+| `ticketplus.com` | `nodriver_ticketplus_main()` |
+| `urbtix.hk` | (保留，未實作) |
+| `cityline.com` | `nodriver_cityline_main()` |
+| `hkticketing.com` / `galaxymacau.com` / `ticketek.com` | `nodriver_hkticketing_main()` |
+| `tickets.funone.io` | `nodriver_funone_main()` |
+| `go.fansi.me` | `nodriver_fansigo_main()` |
+| `facebook.com/login.php` | `nodriver_facebook_main()` |
 
 **平台家族**：部分平台共用相同的後端邏輯：
 - **TixCraft 家族**：tixcraft.com、indievox.com、ticketmaster.sg/com 共用 `nodriver_tixcraft_main()`
@@ -77,7 +77,7 @@ while True:
 
 ## 平台內 URL 路由（以 TixCraft 為例）
 
-`nodriver_tixcraft_main()` (行 5878) 展示了典型的平台內 URL 路由結構：
+`nodriver_tixcraft_main()` 展示了典型的平台內 URL 路由結構：
 
 | URL 路徑特徵 | 對應階段 | 處理函式 |
 |-------------|---------|---------|
@@ -90,11 +90,11 @@ while True:
 | `/ticket/ticket/` | Stage 6 票數設定 | `nodriver_tixcraft_ticket_main()` |
 | `/ticket/checkout` | Stage 10 訂單送出 | checkout 處理 |
 
-**實作位置**：`src/nodriver_tixcraft.py` 行 5878-6123
+**實作位置**：`src/platforms/tixcraft.py`（nodriver_tixcraft_main）
 
 ### KKTIX 路由
 
-`nodriver_kktix_main()` (行 2657) 的路由：
+`nodriver_kktix_main()`（`src/platforms/kktix.py`）的路由：
 
 | URL 路徑特徵 | 對應階段 | 說明 |
 |-------------|---------|------|
@@ -108,7 +108,7 @@ while True:
 
 ### 平台狀態字典
 
-每個平台維護一個全域字典追蹤狀態，以 `tixcraft_dict` 為例 (行 5955-5973)：
+每個平台模組維護模組層級的 `_state` 字典追蹤狀態（以 `src/platforms/tixcraft.py` 的 `_state` 為例）：
 
 | 欄位 | 用途 |
 |------|------|
@@ -121,7 +121,7 @@ while True:
 
 ### 全域 Alert Handler
 
-各平台在 `_main` 首次呼叫時註冊 CDP `JavascriptDialogOpening` handler (如行 5977-5983)，自動處理彈窗：
+各平台在 `_main` 首次呼叫時註冊 CDP `JavascriptDialogOpening` handler，自動處理彈窗：
 
 - **售完提示**：自動關閉並進入冷卻延遲
 - **驗證碼錯誤**：標記 `captcha_alert_detected` 供重試邏輯使用
@@ -144,7 +144,7 @@ while True:
 2. 設定 `is_quit_bot = False` — 不結束程式，讓多開實例可獨立運作
 3. 不自動建立暫停檔案
 
-**實作位置**：行 26189-26257（各平台的完成處理）
+**實作位置**：`src/nodriver_tixcraft.py` 主迴圈（各平台的完成處理）
 
 ---
 
@@ -152,23 +152,24 @@ while True:
 
 | 檔案 | 說明 |
 |------|------|
-| `src/nodriver_tixcraft.py` | 主迴圈與所有平台 `_main` 函式 |
+| `src/nodriver_tixcraft.py` | 主迴圈與 URL 路由分派 |
+| `src/nodriver_common.py` | `nodriver_current_url()`、暫停與 Cloudflare 共用函式 |
 | `src/util.py` | `create_debug_logger()`、`is_text_match_keyword()` 等共用函式 |
 
 **各平台 `_main` 函式位置**：
 
-| 函式 | 行號 |
+| 函式 | 檔案 |
 |------|------|
-| `nodriver_kktix_main()` | 2657 |
-| `nodriver_tixcraft_main()` | 5878 |
-| `nodriver_ticketplus_main()` | 7948 |
-| `nodriver_famiticket_main()` | 9002 |
-| `nodriver_ibon_main()` | 12763 |
-| `nodriver_cityline_main()` | 14537 |
-| `nodriver_kham_main()` | 16011 |
-| `nodriver_hkticketing_main()` | 23131 |
-| `nodriver_funone_main()` | 25057 |
-| `nodriver_fansigo_main()` | 25939 |
+| `nodriver_kktix_main()` | `src/platforms/kktix.py` |
+| `nodriver_tixcraft_main()` | `src/platforms/tixcraft.py` |
+| `nodriver_ticketplus_main()` | `src/platforms/ticketplus.py` |
+| `nodriver_famiticket_main()` | `src/platforms/famiticket.py` |
+| `nodriver_ibon_main()` | `src/platforms/ibon.py` |
+| `nodriver_cityline_main()` | `src/platforms/cityline.py` |
+| `nodriver_kham_main()` | `src/platforms/kham.py` |
+| `nodriver_hkticketing_main()` | `src/platforms/hkticketing.py` |
+| `nodriver_funone_main()` | `src/platforms/funone.py` |
+| `nodriver_fansigo_main()` | `src/platforms/fansigo.py` |
 
 ---
 

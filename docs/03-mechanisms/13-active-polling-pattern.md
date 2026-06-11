@@ -1,7 +1,7 @@
 # Active Polling Pattern（主動輪詢機制）
 
 **文件說明**：定義冷卻刷新期間的等待與輪詢標準模式
-**最後更新**：2026-02-13
+**最後更新**：2026-06-10
 
 > ⚠️ **文件狀態**：Active Polling 為設計概念，尚未實作。目前所有平台統一使用 **Simple Wait 模式**。
 
@@ -40,9 +40,8 @@ except Exception:
 
 #### Stage 4: 日期選擇
 
-**檔案**：`nodriver_tixcraft.py`
+**檔案**：`src/platforms/tixcraft.py`
 **函數**：`nodriver_tixcraft_date_auto_select()`
-**行號**：4589-4600
 
 ```python
 # Auto refresh if no date was selected (for strict mode or sold out scenarios)
@@ -62,9 +61,8 @@ if not is_date_clicked:
 
 #### Stage 5: 區域選擇
 
-**檔案**：`nodriver_tixcraft.py`
+**檔案**：`src/platforms/tixcraft.py`
 **函數**：`nodriver_tixcraft_area_auto_select()`
-**行號**：4712-4723
 
 ```python
 # Auto refresh if needed (simple wait mode, consistent with TicketPlus/iBon/FamiTicket)
@@ -193,7 +191,7 @@ except Exception:
 |------|------|---------|
 | v2.0 | 2026-02-13 | 重構文件：區分 Simple Wait（已實作）與 Active Polling（設計中） |
 | | | 修正範例：`print()` → `debug.log()` |
-| | | 更新行號：4589-4600（日期）、4712-4723（區域） |
+| | | 更新程式碼參照（日期、區域） |
 | v1.0 | 2025-12-17 | 初版：建立 Active Polling Pattern 文件 |
 
 ---

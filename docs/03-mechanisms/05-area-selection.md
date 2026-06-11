@@ -1,7 +1,7 @@
 # 機制 05：區域選擇 (Stage 5)
 
 **文件說明**：詳細說明搶票系統的區域選擇機制、座位區域匹配與自動選擇策略
-**最後更新**：2026-03-05
+**最後更新**：2026-06-10
 
 ---
 
@@ -12,6 +12,7 @@
 **輸出**：選定的座位區域 + 點擊區域按鈕
 **關鍵技術**：
 - **Early Return Pattern**（早期返回模式）：優先級驅動的關鍵字匹配
+- **Batch Candidate Fetch**（批次候選資料擷取）：先擷取所有區域文字與狀態，再在本機配對
 - **Conditional Fallback**（條件回退）：智慧回退機制
 - **keyword_exclude**（排除關鍵字）：過濾不想要的區域
 - **Ticket Availability Check**（票數檢查）：確保座位數量足夠
@@ -23,7 +24,8 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ 1. 取得所有可用區域列表                                      │
-│    ├─ 標準 DOM 查詢（TixCraft, KKTIX, TicketPlus, KHAM）    │
+│    ├─ 批次擷取文字/狀態（TixCraft, KKTIX）                  │
+│    ├─ 標準 DOM 查詢（TicketPlus, KHAM）                     │
 │    └─ DOMSnapshot 平坦化（iBon - closed Shadow DOM）        │
 └─────────────────────────────────────────────────────────────┘
                              ↓
@@ -65,9 +67,40 @@
 
 ## 關鍵程式碼片段
 
-### 1. Early Return Pattern（關鍵字優先匹配）
+### 1. 批次候選資料擷取（推薦模式）
 
-**範例來源**：TixCraft (`nodriver_tixcraft.py:4910-4925`)
+**範例來源**：TixCraft (`src/platforms/tixcraft.py:nodriver_tixcraft_area_auto_select`)
+
+```python
+# 先批次取得所有區域文字與票數資訊，後續配對使用 cache。
+area_list_cache = await el.query_selector_all('a')
+area_text_cache = await tab.evaluate("""
+    Array.from(document.querySelectorAll('.zone a')).map(a => ({
+        text: a.innerText.trim(),
+        fontText: a.querySelector('font')?.textContent?.trim() ?? ''
+    }))
+""")
+
+is_need_refresh, matched_blocks = await nodriver_get_tixcraft_target_area(
+    el,
+    config_dict,
+    area_keyword_item,
+    area_list_cache=area_list_cache,
+    area_text_cache=area_text_cache,
+)
+```
+
+**設計原則**：
+- 對 DOM/CDP 的往返次數應與頁面掃描次數解耦，避免「掃一列、查一次 DOM、配一次」。
+- 候選資料應包含文字、可用狀態、票數提示與後續操作需要的索引或元素。
+- 配對、排除關鍵字、票數檢查應在 Python 端使用批次結果完成。
+- KKTIX 價格列表模式同樣適用：一次擷取所有票種列，再回傳要填票數的 input index。
+
+---
+
+### 2. Early Return Pattern（關鍵字優先匹配）
+
+**範例來源**：TixCraft (`src/platforms/tixcraft.py:nodriver_tixcraft_area_auto_select`)
 
 ```python
 # T011: Early return pattern - iterate keywords in priority order
@@ -98,9 +131,9 @@ if not keyword_matched:
 
 ---
 
-### 2. 條件回退機制（Feature 003）
+### 3. 條件回退機制（Feature 003）
 
-**範例來源**：TixCraft (`nodriver_tixcraft.py:4927-4955`)
+**範例來源**：TixCraft (`src/platforms/tixcraft.py:nodriver_tixcraft_area_auto_select`)
 
 ```python
 # T022-T024: NEW - Conditional fallback based on area_auto_fallback switch
@@ -132,9 +165,9 @@ if matched_blocks is None or len(matched_blocks) == 0:
 
 ---
 
-### 3. keyword_exclude（排除關鍵字）
+### 4. keyword_exclude（排除關鍵字）
 
-**範例來源**：TixCraft (`nodriver_tixcraft.py:5040-5042`)
+**範例來源**：TixCraft (`src/platforms/tixcraft.py:nodriver_get_tixcraft_target_area`)
 
 ```python
 # Filter out unwanted areas using keyword_exclude
@@ -176,9 +209,9 @@ def reset_row_text_if_match_keyword_exclude(config_dict, row_text):
 
 ---
 
-### 4. AND 邏輯支援（空格分隔）
+### 5. AND 邏輯支援（空格分隔）
 
-**範例來源**：TixCraft (`nodriver_tixcraft.py:5049-5074`)
+**範例來源**：TixCraft (`src/platforms/tixcraft.py:nodriver_get_tixcraft_target_area`)
 
 ```python
 # Check keyword match with AND logic (space-separated)
@@ -233,9 +266,9 @@ if area_keyword_item:
 
 ---
 
-### 5. 票數可用性檢查
+### 6. 票數可用性檢查
 
-**範例來源**：TixCraft (`nodriver_tixcraft.py:5078-5098`)
+**範例來源**：TixCraft (`src/platforms/tixcraft.py:nodriver_get_tixcraft_target_area`)
 
 ```python
 # Check seat availability for multiple tickets.
@@ -280,7 +313,7 @@ if config_dict["ticket_number"] > 1 and not allow_less_tickets:
 
 ---
 
-### 6. 選擇模式索引計算（v2025.12.18 新增）
+### 7. 選擇模式索引計算（v2025.12.18 新增）
 
 **使用統一的 `util.get_target_index_by_mode()` 函數**：
 
@@ -322,19 +355,18 @@ elif auto_select_mode == "from bottom to top":
 | 平台 | 選擇器類型 | Shadow DOM | 特殊處理 | 函數名稱 | 完成度 |
 |------|-----------|-----------|---------|---------|--------|
 | **TixCraft** | Link list | ❌ 無 | 檢查 `font` 票數資訊 | `nodriver_tixcraft_area_auto_select()` | 100% ✅ |
-| **KKTIX** | Price table | ❌ 無 | 兩階段：價格表 + 票數輸入 | `nodriver_kktix_assign_ticket_number()` | 100% ✅ |
+| **KKTIX** | Price table | ❌ 無 | 批次擷取票種列，兩階段：價格表 + 票數輸入 | `nodriver_kktix_assign_ticket_number()` | 100% ✅ |
 | **iBon** | Button list | ✅ Closed | **DOMSnapshot 平坦化**策略 | `nodriver_ibon_area_auto_select()` | 100% ✅ |
 | **TicketPlus** | Expansion panel | ❌ 無 | 需先展開 area 面板 | `nodriver_ticketplus_area_auto_select()` | 100% ✅ |
 | **KHAM** | Table rows | ❌ 無 | Table mode + Seat map 雙模式 | `nodriver_kham_area_auto_select()` | 100% ✅ |
 | **UDN** | Table rows | ❌ 無 | 複用 KHAM 邏輯 (`table.yd_ticketsTable`) | `nodriver_kham_area_auto_select()` | 100% ✅ |
 
-**程式碼位置**（`nodriver_tixcraft.py`）：
-- **TixCraft**: Line 4871 (`nodriver_tixcraft_area_auto_select`, 主要參考範例) ⭐
-- TixCraft helper: Line 4992 (`nodriver_get_tixcraft_target_area`)
-- KKTIX: Line 1268 (`nodriver_kktix_assign_ticket_number`)
-- iBon: Line 10217 (`nodriver_ibon_area_auto_select`)
-- KHAM: Line 15421 (`nodriver_kham_area_auto_select`)
-- **UDN**: Line ~16473 (複用 KHAM 邏輯，`table.yd_ticketsTable` Line 16669)
+**主要程式碼位置**：
+- **TixCraft**: `src/platforms/tixcraft.py` (`nodriver_tixcraft_area_auto_select`, 主要參考範例) ⭐
+- TixCraft helper: `src/platforms/tixcraft.py` (`nodriver_get_tixcraft_target_area`)
+- KKTIX: `src/platforms/kktix.py` (`nodriver_kktix_travel_price_list`, `nodriver_kktix_assign_ticket_number`)
+- iBon: `src/platforms/ibon.py` (`nodriver_ibon_area_auto_select`)
+- KHAM / UDN: `src/platforms/kham.py`
 
 ---
 
@@ -352,6 +384,7 @@ elif auto_select_mode == "from bottom to top":
   - [ ] 自動模式（true）：回退到 `auto_select_mode`
 
 - [ ] **過濾機制**
+  - [ ] 先批次擷取候選區域資料，避免逐列 DOM/CDP 查詢
   - [ ] 過濾 disabled 按鈕
   - [ ] 套用排除關鍵字（`keyword_exclude`）
   - [ ] 檢查票數可用性（`ticket_number`）

@@ -1,7 +1,7 @@
 # 機制 09：同意條款 (Stage 9)
 
 **文件說明**：說明搶票系統的條款同意機制、自動勾選策略與各平台差異
-**最後更新**：2026-03-06
+**最後更新**：2026-06-10
 
 ---
 
@@ -19,7 +19,7 @@
 
 系統提供三個層級的 checkbox 勾選函式，各平台依需求選用：
 
-### `nodriver_check_checkbox()`（行 206-258）
+### `nodriver_check_checkbox()`（`src/nodriver_common.py`）
 
 通用版本，透過 JavaScript 操作 checkbox：
 
@@ -28,11 +28,11 @@
 3. **檢查勾選狀態** — 若 `checkbox.checked` 為 true，直接回傳成功
 4. **嘗試點擊** — 呼叫 `checkbox.click()`，若失敗則 fallback 直接設定 `checkbox.checked = true`
 
-### `nodriver_check_checkbox_enhanced()`（行 293-326）
+### `nodriver_check_checkbox_enhanced()`（`src/nodriver_common.py`）
 
 增強版本，專為 TixCraft 設計，使用精確的 CSS 選擇器（如 `#TicketForm_agree`）定位單一 checkbox，配合 DebugLogger 輸出操作結果。
 
-### `nodriver_force_check_checkbox()`（行 260-291）
+### `nodriver_force_check_checkbox()`（`src/nodriver_common.py`）
 
 強制版本，接受已取得的 checkbox 元素物件，直接操作而非透過選擇器查找。用於需要精確控制目標元素的場景。
 
@@ -40,39 +40,39 @@
 
 ## 各平台條款同意實作
 
-| 平台 | 函式名稱 | 行號 | 選擇器 / 方式 | 特殊邏輯 |
+| 平台 | 函式名稱 | 檔案 | 選擇器 / 方式 | 特殊邏輯 |
 |------|----------|------|--------------|----------|
-| TixCraft | `nodriver_tixcraft_ticket_main_agree` | 5443 | `#TicketForm_agree` | 最多重試 3 次，使用 enhanced 版本 |
-| KKTIX | 整合於 `nodriver_kktix_confirm_order_button` | 2971 | 提交前隱含勾選 | 由確認按鈕流程處理 |
-| iBon | `nodriver_ibon_ticket_agree` | 9739 | `#agreen:not(:checked)` | 最多重試 3 次 |
-| iBon (不相鄰座位) | `nodriver_ibon_allow_not_adjacent_seat` | 9745 | `div.not-consecutive input[type="checkbox"]` | 允許不相鄰座位的額外 checkbox |
-| TicketPlus | `nodriver_ticketplus_ticket_agree` | 7307 | `input[type="checkbox"]` 全部 | 遍歷所有 checkbox，支援 JS fallback |
-| TicketPlus (實名制) | `nodriver_ticketplus_accept_realname_card` | 7367 | `div.v-dialog button.primary` | 彈窗按鈕點擊 |
-| FamiTicket | 整合於 `nodriver_fami_ticket_select` | 8855 | `.ts-note__check` | 勾選兩個注意事項 checkbox |
-| FunOne | `nodriver_funone_ticket_agree` | 24761 | 自訂 `.checkbox_block` | 支援自訂 div checkbox 和標準 input checkbox |
+| TixCraft | `nodriver_tixcraft_ticket_main_agree` | `platforms/tixcraft.py` | `#TicketForm_agree` | 最多重試 3 次，使用 enhanced 版本 |
+| KKTIX | 整合於 `nodriver_kktix_confirm_order_button` | `platforms/kktix.py` | 提交前隱含勾選 | 由確認按鈕流程處理 |
+| iBon | `nodriver_ibon_ticket_agree` | `platforms/ibon.py` | `#agreen:not(:checked)` | 最多重試 3 次 |
+| iBon (不相鄰座位) | `nodriver_ibon_allow_not_adjacent_seat` | `platforms/ibon.py` | `div.not-consecutive input[type="checkbox"]` | 允許不相鄰座位的額外 checkbox |
+| TicketPlus | `nodriver_ticketplus_ticket_agree` | `platforms/ticketplus.py` | `input[type="checkbox"]` 全部 | 遍歷所有 checkbox，支援 JS fallback |
+| TicketPlus (實名制) | `nodriver_ticketplus_accept_realname_card` | `platforms/ticketplus.py` | `div.v-dialog button.primary` | 彈窗按鈕點擊 |
+| FamiTicket | 整合於 `nodriver_fami_ticket_select` | `platforms/famiticket.py` | `.ts-note__check` | 勾選兩個注意事項 checkbox |
+| FunOne | `nodriver_funone_ticket_agree` | `platforms/funone.py` | 自訂 `.checkbox_block` | 支援自訂 div checkbox 和標準 input checkbox |
 
 ---
 
 ## 平台關鍵差異
 
-### TixCraft — 簡單精確勾選（行 5443-5458）
+### TixCraft — 簡單精確勾選（`nodriver_tixcraft_ticket_main_agree`）
 
 TixCraft 的條款 checkbox 使用固定 ID `#TicketForm_agree`，是最單純的實作：
 
 - 使用 `nodriver_check_checkbox_enhanced()` 精確定位
 - 最多重試 3 次，失敗時記錄警告
-- 在 `nodriver_tixcraft_ticket_main()` 中，不論票數是否已設定都會呼叫此函式（行 5476、5490），確保 checkbox 一定被勾選
+- 在 `nodriver_tixcraft_ticket_main()` 中，不論票數是否已設定都會呼叫此函式，確保 checkbox 一定被勾選
 
-### TicketPlus — 全遍歷 + JS Fallback（行 7307-7365）
+### TicketPlus — 全遍歷 + JS Fallback（`nodriver_ticketplus_ticket_agree`）
 
 TicketPlus 的條款 checkbox 沒有固定選擇器，系統遍歷頁面上所有 `input[type="checkbox"]`：
 
 - 逐一檢查 `el.checked` 狀態
 - 未勾選時先嘗試 `checkbox.click()`（ZenDriver 原生點擊）
 - 若點擊後仍未勾選，fallback 至 JavaScript：設定 `checkbox.checked = true` 並觸發 `change` 事件
-- 額外處理實名制彈窗（`nodriver_ticketplus_accept_realname_card`，行 7367-7378）
+- 額外處理實名制彈窗（`nodriver_ticketplus_accept_realname_card`）
 
-### FunOne — 自訂 Checkbox 元件（行 24761-24839）
+### FunOne — 自訂 Checkbox 元件（`nodriver_funone_ticket_agree`）
 
 FunOne 不使用標準 `<input type="checkbox">`，而是自訂 `<div class="checkbox">` 元件：
 
@@ -81,7 +81,7 @@ FunOne 不使用標準 `<input type="checkbox">`，而是自訂 `<div class="che
 - 若自訂 checkbox 找不到，fallback 至標準 `input[type="checkbox"]`
 - 標準 checkbox 需檢查附近文字是否包含「同意」、「條款」、「agree」、「terms」等關鍵字，避免勾選無關 checkbox
 
-### iBon — 不相鄰座位同意（行 9745-9772）
+### iBon — 不相鄰座位同意（`nodriver_ibon_allow_not_adjacent_seat`）
 
 iBon 除了基本條款同意外，還有「允許不相鄰座位」的特殊 checkbox：
 
@@ -89,7 +89,7 @@ iBon 除了基本條款同意外，還有「允許不相鄰座位」的特殊 ch
 - 使用 `:not(:checked)` 偽類確保只操作未勾選的 checkbox
 - 最多重試 3 次
 
-### FamiTicket — 整合於票種選擇流程（行 8855-8870）
+### FamiTicket — 整合於票種選擇流程（`nodriver_fami_ticket_select`）
 
 FamiTicket 的條款勾選不是獨立階段，而是整合在 `nodriver_fami_ticket_select()` 中：
 
@@ -133,7 +133,7 @@ for i in range(3):
 
 **原因**：某些前端框架（如 Vue/React）攔截了原生 click 事件，或 checkbox 由 JavaScript 控制
 
-**解決方式**：使用 JS fallback 直接設定 `checked = true` 並觸發 `change` 事件（TicketPlus 實作，行 7341-7348）
+**解決方式**：使用 JS fallback 直接設定 `checked = true` 並觸發 `change` 事件（TicketPlus 實作）
 
 ### 問題 2：彈窗條款未處理
 
@@ -141,7 +141,7 @@ for i in range(3):
 
 **原因**：平台顯示了額外的彈窗（如 TicketPlus 實名制卡片）
 
-**解決方式**：TicketPlus 額外呼叫 `nodriver_ticketplus_accept_realname_card()`（行 7367）和 `nodriver_ticketplus_accept_other_activity()`（行 7380）處理彈窗
+**解決方式**：TicketPlus 額外呼叫 `nodriver_ticketplus_accept_realname_card()` 和 `nodriver_ticketplus_accept_other_activity()` 處理彈窗
 
 ### 問題 3：過度勾選
 
