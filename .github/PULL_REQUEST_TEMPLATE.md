@@ -35,6 +35,9 @@
 - [ ] 已測試功能正常
 - [ ] 無敏感資訊（密碼、Cookie、API key）
 - [ ] `.py` 檔案中沒有使用 emoji
+- [ ] 涉及本機 API、設定檔、帳號、Cookie、Webhook、Token、下載器或 release artifact 時，已更新或通過相關安全測試
+- [ ] 涉及自動化頻率、登入、平台 adapter 或使用者文案時，已維持個人合法使用、使用者自有帳號與平台條款內操作的 scope control
+- [ ] 新增 release artifact、模型、字集或打包流程時，已更新 manifest / SBOM 驗證路徑
 
 ## 相關 Issue
 
