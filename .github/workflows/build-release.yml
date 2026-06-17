@@ -40,6 +40,14 @@ jobs:
           python -c "import ddddocr; import zendriver; import tornado; print('All core packages installed!')"
           python -m PyInstaller --version
 
+      - name: Run security gates
+        run: |
+          pip install -r requirements-dev.txt
+          python -m compileall src tests
+          python -m pytest
+          python -m bandit -q -r src -x src/assets,src/www/dist --severity-level high --confidence-level high
+          python -m pip_audit -r requirement.txt
+
       - name: Build executables with PyInstaller
         run: |
           echo "Building nodriver_tixcraft.exe..."
@@ -87,6 +95,10 @@ jobs:
 
           # Display file info
           Get-ChildItem $zipName | Format-List Name, Length
+
+      - name: Generate release manifest and SBOM
+        run: |
+          python scripts/release_manifest.py --dist-dir dist/tickets_hunter --release-dir . --output release-manifest.json --sbom-output sbom.cdx.json --require-dist
 
       - name: Extract CHANGELOG for release notes
         id: changelog
@@ -143,6 +155,8 @@ jobs:
             ${{ steps.changelog.outputs.NOTES }}
           files: |
             tickets_hunter_v${{ steps.get_version.outputs.VERSION }}.zip
+            release-manifest.json
+            sbom.cdx.json
           draft: true
           prerelease: false
         env:
