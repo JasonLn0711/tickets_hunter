@@ -2,6 +2,7 @@
 #encoding=utf-8
 import asyncio
 import base64
+import binascii
 import json
 import os
 import platform
@@ -17,6 +18,8 @@ from tornado.web import Application
 from tornado.web import StaticFileHandler
 
 import requests
+import secret_store
+import security_utils
 import util
 
 from typing import (
@@ -54,6 +57,7 @@ CONST_MAXBOT_LAST_URL_FILE = "MAXBOT_LAST_URL.txt"
 CONST_MAXBOT_QUESTION_FILE = "MAXBOT_QUESTION.txt"
 
 CONST_SERVER_PORT = 16888
+CONST_LOCAL_API_TOKEN = security_utils.new_local_api_token()
 
 CONST_FROM_TOP_TO_BOTTOM = "from top to bottom"
 CONST_FROM_BOTTOM_TO_TOP = "from bottom to top"
@@ -297,7 +301,8 @@ def load_json():
     config_filepath = os.path.join(app_root, CONST_MAXBOT_CONFIG_FILE)
 
     config_dict = None
-    if os.path.isfile(config_filepath):
+    config_file_exists = os.path.isfile(config_filepath)
+    if config_file_exists:
         try:
             with open(config_filepath, encoding='utf-8') as json_data:
                 config_dict = json.load(json_data)
@@ -310,8 +315,25 @@ def load_json():
 
     # Apply migrations for backward compatibility
     config_dict = migrate_config(config_dict)
+    if config_file_exists:
+        sanitized_config = secret_store.store_and_sanitize(config_dict, app_root)
+        if sanitized_config != config_dict:
+            util.save_json(sanitized_config, config_filepath)
+        config_dict = sanitized_config
+
+    config_dict = hydrate_config_secrets(config_dict, app_root)
 
     return config_filepath, config_dict
+
+def hydrate_config_secrets(config_dict, app_root=None):
+    if app_root is None:
+        app_root = util.get_app_root()
+    return secret_store.hydrate(config_dict, app_root)
+
+def persist_config_without_plaintext_secrets(config_dict, app_root=None):
+    if app_root is None:
+        app_root = util.get_app_root()
+    return secret_store.store_and_sanitize(config_dict, app_root, clear_empty=True)
 
 def reset_json():
     app_root = util.get_app_root()
@@ -324,6 +346,7 @@ def reset_json():
             pass
 
     config_dict = get_default_config()
+    secret_store.clear(app_root, config_dict)
     return config_filepath, config_dict
 
 def maxbot_idle():
@@ -417,8 +440,43 @@ def clean_tmp_file():
             except Exception as e:
                 print(f"[WARNING] Failed to remove {item}: {e}")
 
+def get_request_token(handler):
+    token = handler.request.headers.get("X-Tickets-Hunter-Token", "")
+    if not token:
+        token = handler.get_argument("_local_token", "")
+    return token
+
+def write_json_error(handler, status_code, message, code):
+    handler.set_status(status_code)
+    handler.write(dict(error=dict(message=message, code=code)))
+
+class LocalOnlyHandler(tornado.web.RequestHandler):
+    def set_default_headers(self):
+        self.set_header("X-Content-Type-Options", "nosniff")
+        self.set_header("Referrer-Policy", "same-origin")
+
+    def prepare(self):
+        remote_ip = self.request.remote_ip or ""
+        if not security_utils.is_loopback_address(remote_ip):
+            write_json_error(self, 403, "local access only", 1403)
+            self.finish()
+
+class LocalMutationHandler(LocalOnlyHandler):
+    def prepare(self):
+        super().prepare()
+        if self._finished:
+            return
+        request_token = get_request_token(self)
+        if not security_utils.token_matches(request_token, CONST_LOCAL_API_TOKEN):
+            write_json_error(self, 403, "local API token required", 1404)
+            self.finish()
+
 class NoCacheStaticFileHandler(StaticFileHandler):
     """Custom StaticFileHandler that prevents stale settings UI assets."""
+    def set_default_headers(self):
+        self.set_header("X-Content-Type-Options", "nosniff")
+        self.set_header("Referrer-Policy", "same-origin")
+
     def set_extra_headers(self, path):
         # Keep settings UI assets uncached so help text and translations update immediately.
         if path in {'settings.html', 'help-content.js', 'settings.js'}:
@@ -426,7 +484,7 @@ class NoCacheStaticFileHandler(StaticFileHandler):
             self.set_header('Pragma', 'no-cache')
             self.set_header('Expires', '0')
 
-class QuestionHandler(tornado.web.RequestHandler):
+class QuestionHandler(LocalOnlyHandler):
     def get(self):
         """Read MAXBOT_QUESTION.txt and return its content"""
         question_text = ""
@@ -446,17 +504,24 @@ class QuestionHandler(tornado.web.RequestHandler):
             "question": question_text
         })
 
-class VersionHandler(tornado.web.RequestHandler):
+class VersionHandler(LocalOnlyHandler):
     def get(self):
         self.write({"version":self.application.version})
 
-class ShutdownHandler(tornado.web.RequestHandler):
-    def get(self):
+class ShutdownHandler(LocalMutationHandler):
+    def _handle(self):
         global GLOBAL_SERVER_SHUTDOWN
         GLOBAL_SERVER_SHUTDOWN = True
         self.write({"showdown": GLOBAL_SERVER_SHUTDOWN})
 
-class StatusHandler(tornado.web.RequestHandler):
+    def post(self):
+        self._handle()
+
+    def get(self):
+        self.set_header("X-Tickets-Hunter-Deprecated", "use POST /shutdown")
+        self._handle()
+
+class StatusHandler(LocalOnlyHandler):
     def get(self):
         is_paused = False
         app_root = util.get_app_root()
@@ -466,23 +531,44 @@ class StatusHandler(tornado.web.RequestHandler):
         url = read_last_url_from_file()
         self.write({"status": not is_paused, "last_url": url})
 
-class PauseHandler(tornado.web.RequestHandler):
-    def get(self):
+class PauseHandler(LocalMutationHandler):
+    def _handle(self):
         maxbot_idle()
         self.write({"pause": True})
 
-class ResumeHandler(tornado.web.RequestHandler):
+    def post(self):
+        self._handle()
+
     def get(self):
+        self.set_header("X-Tickets-Hunter-Deprecated", "use POST /pause")
+        self._handle()
+
+class ResumeHandler(LocalMutationHandler):
+    def _handle(self):
         maxbot_resume()
         self.write({"resume": True})
 
-class RunHandler(tornado.web.RequestHandler):
+    def post(self):
+        self._handle()
+
     def get(self):
+        self.set_header("X-Tickets-Hunter-Deprecated", "use POST /resume")
+        self._handle()
+
+class RunHandler(LocalMutationHandler):
+    def _handle(self):
         print('run button pressed.')
         launch_maxbot()
         self.write({"run": True})
 
-class LoadJsonHandler(tornado.web.RequestHandler):
+    def post(self):
+        self._handle()
+
+    def get(self):
+        self.set_header("X-Tickets-Hunter-Deprecated", "use POST /run")
+        self._handle()
+
+class LoadJsonHandler(LocalOnlyHandler):
     def get(self):
         config_filepath, config_dict = load_json()
 
@@ -490,17 +576,30 @@ class LoadJsonHandler(tornado.web.RequestHandler):
         server_port = config_dict.get("advanced", {}).get("server_port", CONST_SERVER_PORT)
         if not isinstance(server_port, int) or server_port < 1024 or server_port > 65535:
             server_port = CONST_SERVER_PORT
-        config_dict["advanced"]["remote_url"] = f'"http://127.0.0.1:{server_port}/"'
+        response_dict = dict(config_dict)
+        response_dict["advanced"] = dict(config_dict.get("advanced", {}))
+        response_dict["advanced"]["remote_url"] = f'"http://127.0.0.1:{server_port}/"'
+        response_dict["_security"] = {
+            "local_api_token": CONST_LOCAL_API_TOKEN,
+            "bind_host": security_utils.LOCAL_BIND_HOST,
+        }
 
-        self.write(config_dict)
+        self.write(response_dict)
 
-class ResetJsonHandler(tornado.web.RequestHandler):
-    def get(self):
+class ResetJsonHandler(LocalMutationHandler):
+    def _handle(self):
         config_filepath, config_dict = reset_json()
         util.save_json(config_dict, config_filepath)
         self.write(config_dict)
 
-class SaveJsonHandler(tornado.web.RequestHandler):
+    def post(self):
+        self._handle()
+
+    def get(self):
+        self.set_header("X-Tickets-Hunter-Deprecated", "use POST /reset")
+        self._handle()
+
+class SaveJsonHandler(LocalMutationHandler):
     def post(self):
         _body = None
         is_pass_check = True
@@ -510,17 +609,27 @@ class SaveJsonHandler(tornado.web.RequestHandler):
         if is_pass_check:
             is_pass_check = False
             try :
+                if len(self.request.body) > security_utils.MAX_JSON_BODY_BYTES:
+                    raise ValueError("request body is too large")
                 _body = json.loads(self.request.body)
                 is_pass_check = True
-            except Exception:
-                error_message = "wrong json format"
+            except Exception as exc:
+                error_message = "wrong json format: %s" % str(exc)
                 error_code = 1002
                 pass
 
         if is_pass_check:
             app_root = util.get_app_root()
             config_filepath = os.path.join(app_root, CONST_MAXBOT_CONFIG_FILE)
-            config_dict = _body
+            try:
+                config_dict = migrate_config(_body)
+                config_dict = security_utils.validate_config(config_dict, get_default_config())
+            except security_utils.ConfigValidationError as exc:
+                is_pass_check = False
+                error_message = "invalid config: %s" % str(exc)
+                error_code = 1003
+
+        if is_pass_check:
 
             if config_dict["kktix"]["max_dwell_time"] > 0:
                 if config_dict["kktix"]["max_dwell_time"] < 15:
@@ -536,20 +645,17 @@ class SaveJsonHandler(tornado.web.RequestHandler):
             if ".cityline.com" in config_dict["homepage"]:
                 config_dict["webdriver_type"] = CONST_WEBDRIVER_TYPE_NODRIVER
 
-            util.save_json(config_dict, config_filepath)
+            persist_config = persist_config_without_plaintext_secrets(config_dict, app_root)
+            util.save_json(persist_config, config_filepath)
 
         if not is_pass_check:
-            self.set_status(401)
+            self.set_status(400)
             self.write(dict(error=dict(message=error_message,code=error_code)))
 
         self.finish()
 
-class SendkeyHandler(tornado.web.RequestHandler):
+class SendkeyHandler(LocalMutationHandler):
     def post(self):
-        self.set_header("Access-Control-Allow-Origin", "*")
-        self.set_header("Access-Control-Allow-Headers", "x-requested-with")
-        self.set_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
-
         _body = None
         is_pass_check = True
         errorMessage = ""
@@ -568,13 +674,17 @@ class SendkeyHandler(tornado.web.RequestHandler):
         if is_pass_check:
             app_root = util.get_app_root()
             if "token" in _body:
-                tmp_file = _body["token"] + ".tmp"
-                config_filepath = os.path.join(app_root, tmp_file)
-                util.save_json(_body, config_filepath)
+                try:
+                    config_filepath = security_utils.build_safe_tmp_path(app_root, _body["token"])
+                    util.save_json(_body, config_filepath)
+                except ValueError as exc:
+                    self.set_status(400)
+                    self.write(dict(error=dict(message=str(exc), code=1002)))
+                    return
 
         self.write({"return": True})
 
-class TestDiscordWebhookHandler(tornado.web.RequestHandler):
+class TestDiscordWebhookHandler(LocalMutationHandler):
     ALLOWED_HOSTS = ("discord.com", "discordapp.com")
 
     def post(self):
@@ -626,10 +736,11 @@ class TestDiscordWebhookHandler(tornado.web.RequestHandler):
                 debug.log("[Discord Webhook] Test failed: HTTP %d" % response.status_code)
                 self.write({"success": False, "message": "HTTP %d" % response.status_code})
         except Exception as exc:
-            debug.log("[Discord Webhook] Test failed: %s" % str(exc))
-            self.write({"success": False, "message": str(exc)})
+            safe_msg = security_utils.redact_text(str(exc), [webhook_url])
+            debug.log("[Discord Webhook] Test failed: %s" % safe_msg)
+            self.write({"success": False, "message": safe_msg})
 
-class TestTelegramHandler(tornado.web.RequestHandler):
+class TestTelegramHandler(LocalMutationHandler):
     def post(self):
         try:
             body = json.loads(self.request.body)
@@ -679,10 +790,10 @@ class TestTelegramHandler(tornado.web.RequestHandler):
                 if response.status_code == 200 and result.get("ok", False):
                     ok_count += 1
                 else:
-                    desc = result.get("description", "HTTP %d" % response.status_code)
+                    desc = security_utils.redact_text(result.get("description", "HTTP %d" % response.status_code), [bot_token])
                     errors.append(f"{cid}: {desc}")
             except (requests.RequestException, ValueError) as exc:
-                safe_msg = str(exc).replace(bot_token, "***") if bot_token else str(exc)
+                safe_msg = security_utils.redact_text(str(exc), [bot_token])
                 errors.append(f"{cid}: {safe_msg}")
 
         if ok_count == len(chat_ids):
@@ -696,15 +807,11 @@ class TestTelegramHandler(tornado.web.RequestHandler):
             debug.log("[Telegram] Test failed: %s" % msg)
             self.write({"success": False, "message": msg})
 
-class OcrHandler(tornado.web.RequestHandler):
+class OcrHandler(LocalMutationHandler):
     def get(self):
         self.write({"answer": "1234"})
 
     def post(self):
-        self.set_header("Access-Control-Allow-Origin", "*")
-        self.set_header("Access-Control-Allow-Headers", "x-requested-with")
-        self.set_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
-
         _body = None
         is_pass_check = True
         errorMessage = ""
@@ -726,7 +833,16 @@ class OcrHandler(tornado.web.RequestHandler):
             if 'image_data' in _body:
                 image_data = _body['image_data']
                 if len(image_data) > 0:
-                    img_base64 = base64.b64decode(image_data)
+                    try:
+                        img_base64 = base64.b64decode(image_data, validate=True)
+                        if len(img_base64) > security_utils.MAX_OCR_IMAGE_BYTES:
+                            errorMessage = "image_data too large"
+                            errorCode = 1003
+                            img_base64 = None
+                    except (binascii.Error, ValueError):
+                        errorMessage = "invalid image_data"
+                        errorCode = 1004
+                        img_base64 = None
             else:
                 errorMessage = "image_data not exist"
                 errorCode = 1002
@@ -742,9 +858,14 @@ class OcrHandler(tornado.web.RequestHandler):
             except Exception as exc:
                 pass
 
+        if errorMessage:
+            self.set_status(400)
+            self.write(dict(error=dict(message=errorMessage, code=errorCode)))
+            return
+
         self.write({"answer": ocr_answer})
 
-class QueryHandler(tornado.web.RequestHandler):
+class QueryHandler(LocalOnlyHandler):
     def format_config_keyword_for_json(self, user_input):
         if len(user_input) > 0:
             # Remove any existing quotes first
@@ -774,14 +895,7 @@ class QueryHandler(tornado.web.RequestHandler):
         #print("answer_text_output:", answer_text_output)
         self.write(answer_text_output)
 
-async def main_server():
-    ocr = None
-    try:
-        ocr = ddddocr.DdddOcr(show_ad=False, beta=True)
-    except Exception as exc:
-        print(exc)
-        pass
-
+def make_application(ocr=None):
     app = Application([
         ("/version", VersionHandler),
         ("/shutdown", ShutdownHandler),
@@ -807,6 +921,17 @@ async def main_server():
     ])
     app.ocr = ocr;
     app.version = CONST_APP_VERSION;
+    return app
+
+async def main_server():
+    ocr = None
+    try:
+        ocr = ddddocr.DdddOcr(show_ad=False, beta=True)
+    except Exception as exc:
+        print(exc)
+        pass
+
+    app = make_application(ocr)
 
     # Get server_port from config, fallback to default (Issue #156)
     _, config_dict = load_json()
@@ -817,8 +942,8 @@ async def main_server():
         print(f"[WARNING] Invalid server_port: {server_port}, using default: {CONST_SERVER_PORT}")
         server_port = CONST_SERVER_PORT
 
-    app.listen(server_port)
-    print("server running on port:", server_port)
+    app.listen(server_port, address=security_utils.LOCAL_BIND_HOST)
+    print("server running on:", security_utils.LOCAL_BIND_HOST, "port:", server_port)
 
     url = "http://127.0.0.1:" + str(server_port) + "/settings.html"
     print("goto url:", url)

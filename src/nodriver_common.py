@@ -149,6 +149,7 @@ def get_config_dict(args):
             with open(config_filepath, encoding='utf-8') as json_data:
                 config_dict = json.load(json_data)
                 config_dict = settings.migrate_config(config_dict)
+                config_dict = settings.hydrate_config_secrets(config_dict, app_root)
         except Exception as e:
             print(f"[ERROR] Failed to load settings: {config_filepath}")
             print(f"[ERROR] {e}")

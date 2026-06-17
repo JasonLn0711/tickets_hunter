@@ -13,6 +13,7 @@ from typing import Optional
 
 import requests
 import uuid
+import security_utils
 
 CONST_FROM_TOP_TO_BOTTOM = "from top to bottom"
 CONST_FROM_BOTTOM_TO_TOP = "from bottom to top"
@@ -1280,12 +1281,13 @@ class DebugLogger:
             self.enabled = get_debug_mode(config_dict)
         else:
             self.enabled = False
+        self._secret_values = security_utils.collect_config_secret_values(config_dict or {})
 
     def log(self, *args):
         if not self.enabled or not args:
             return
         text = " ".join(str(a) for a in args)
-        print(text)
+        print(security_utils.redact_text(text, self._secret_values))
 
 
 def create_debug_logger(config_dict=None, enabled=None):
@@ -2096,15 +2098,15 @@ def launch_maxbot(script_name="nodriver_tixcraft", filename="", homepage="", kkt
     if hasattr(sys, 'frozen'):
         print("execute in frozen mode")
         # check platform here.
-        cmd = './' + script_name + ' '.join(cmd_argument)
+        executable = './' + script_name
         if platform.system() == 'Darwin':
             print("execute MacOS python script")
         if platform.system() == 'Linux':
             print("execute linux binary")
         if platform.system() == 'Windows':
             print("execute .exe binary.")
-            cmd = script_name + '.exe ' + ' '.join(cmd_argument)
-        subprocess.Popen(cmd, shell=True, cwd=working_dir)
+            executable = script_name + '.exe'
+        subprocess.Popen([executable] + cmd_argument, cwd=working_dir)
     else:
         interpreter_binary = sys.executable
         print("execute in shell mode.")
