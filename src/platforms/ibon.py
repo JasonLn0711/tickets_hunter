@@ -17,6 +17,7 @@ import webbrowser
 from zendriver import cdp
 
 import util
+from platforms.ibon_decisions import detect_ibon_cookie_features, has_ibon_cookie_config
 from nodriver_common import (
     asyncio_sleep_with_pause_check,
     check_and_handle_pause,
@@ -198,15 +199,16 @@ async def nodriver_ibon_login(tab, config_dict, driver):
 
     # 檢查是否有 ibon cookie 設定
     ibonqware = config_dict["accounts"]["ibonqware"]
-    if len(ibonqware) <= 1:
+    if not has_ibon_cookie_config(config_dict):
         debug.log("No ibon cookie configured, skipping auto-login")
         return {'success': False, 'reason': 'no_cookie_configured'}
 
     debug.log(f"Setting ibon cookie (NoDriver) with length: {len(ibonqware)}")
-    debug.log(f"Cookie contains mem_id: {'mem_id=' in ibonqware}")
-    debug.log(f"Cookie contains mem_email: {'mem_email=' in ibonqware}")
-    debug.log(f"Cookie contains huiwanTK: {'huiwanTK=' in ibonqware}")
-    debug.log(f"Cookie contains ibonqwareverify: {'ibonqwareverify=' in ibonqware}")
+    cookie_features = detect_ibon_cookie_features(ibonqware)
+    debug.log(f"Cookie contains mem_id: {cookie_features['mem_id']}")
+    debug.log(f"Cookie contains mem_email: {cookie_features['mem_email']}")
+    debug.log(f"Cookie contains huiwanTK: {cookie_features['huiwanTK']}")
+    debug.log(f"Cookie contains ibonqwareverify: {cookie_features['ibonqwareverify']}")
 
     try:
         from zendriver import cdp
@@ -4833,4 +4835,3 @@ async def nodriver_ibon_main(tab, url, config_dict, ocr, Captcha_Browser):
         _state["played_sound_order"] = False
         _state["shown_checkout_message"] = False
     return tab
-
