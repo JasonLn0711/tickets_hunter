@@ -88,14 +88,14 @@ def test_token_matches_uses_exact_token():
 
 def test_redact_text_masks_known_secret_values_and_tokens():
     text = (
-        "password=secret-password "
+        "password=secret-password "  # pragma: allowlist secret
         "https://discord.com/api/webhooks/123456/abcdef "
-        "telegram 123456:ABCdefghijklmnopqrstuvwxyz_123"
+        "telegram 123456:ABCdefghijklmnopqrstuvwxyz_123"  # pragma: allowlist secret
     )
 
-    redacted = security_utils.redact_text(text, ["secret-password"])
+    redacted = security_utils.redact_text(text, ["secret-password"])  # pragma: allowlist secret
 
-    assert "secret-password" not in redacted
+    assert "secret-password" not in redacted  # pragma: allowlist secret
     assert "abcdef" not in redacted
-    assert "ABCdefghijklmnopqrstuvwxyz_123" not in redacted
+    assert "ABCdefghijklmnopqrstuvwxyz_123" not in redacted  # pragma: allowlist secret
     assert "password=***" in redacted

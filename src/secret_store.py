@@ -5,7 +5,7 @@ from copy import deepcopy
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 
-SECRET_STORE_FILENAME = "secrets.local.json"
+SECRET_STORE_FILENAME = "secrets.local.json"  # pragma: allowlist secret
 KEYRING_SERVICE = "tickets_hunter"
 SECRET_FIELD_PATHS = (
     ("accounts", "tixcraft_sid"),

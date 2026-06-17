@@ -80,9 +80,9 @@ class SettingsApiSecurityTest(tornado_testing.AsyncHTTPTestCase):
     def test_save_migrates_plaintext_secrets_and_load_hydrates_them(self):
         config = settings.get_default_config()
         config["homepage"] = "https://kktix.com/events/example"
-        config["accounts"]["kktix_password"] = "secret-password"
-        config["accounts"]["tixcraft_sid"] = "sid-secret-value"
-        config["advanced"]["telegram_bot_token"] = "123456:ABCdefghijklmnopqrstuvwxyz_123"
+        config["accounts"]["kktix_password"] = "secret-password"  # pragma: allowlist secret
+        config["accounts"]["tixcraft_sid"] = "sid-secret-value"  # pragma: allowlist secret
+        config["advanced"]["telegram_bot_token"] = "123456:ABCdefghijklmnopqrstuvwxyz_123"  # pragma: allowlist secret
 
         response = self.fetch(
             "/save",
@@ -97,24 +97,24 @@ class SettingsApiSecurityTest(tornado_testing.AsyncHTTPTestCase):
         assert stored_config["accounts"]["kktix_password"] == ""
         assert stored_config["accounts"]["tixcraft_sid"] == ""
         assert stored_config["advanced"]["telegram_bot_token"] == ""
-        assert "secret-password" not in (self.app_root / settings.CONST_MAXBOT_CONFIG_FILE).read_text()
+        assert "secret-password" not in (self.app_root / settings.CONST_MAXBOT_CONFIG_FILE).read_text()  # pragma: allowlist secret
 
         load_response = self.fetch("/load")
         hydrated = json.loads(load_response.body.decode("utf-8"))
-        assert hydrated["accounts"]["kktix_password"] == "secret-password"
-        assert hydrated["accounts"]["tixcraft_sid"] == "sid-secret-value"
-        assert hydrated["advanced"]["telegram_bot_token"] == "123456:ABCdefghijklmnopqrstuvwxyz_123"
+        assert hydrated["accounts"]["kktix_password"] == "secret-password"  # pragma: allowlist secret
+        assert hydrated["accounts"]["tixcraft_sid"] == "sid-secret-value"  # pragma: allowlist secret
+        assert hydrated["advanced"]["telegram_bot_token"] == "123456:ABCdefghijklmnopqrstuvwxyz_123"  # pragma: allowlist secret
 
     def test_existing_plaintext_settings_are_migrated_on_load(self):
         config = settings.get_default_config()
-        config["accounts"]["fami_password"] = "legacy-secret"
+        config["accounts"]["fami_password"] = "legacy-secret"  # pragma: allowlist secret
         (self.app_root / settings.CONST_MAXBOT_CONFIG_FILE).write_text(json.dumps(config), encoding="utf-8")
 
         response = self.fetch("/load")
 
         assert response.code == 200
         hydrated = json.loads(response.body.decode("utf-8"))
-        assert hydrated["accounts"]["fami_password"] == "legacy-secret"
+        assert hydrated["accounts"]["fami_password"] == "legacy-secret"  # pragma: allowlist secret
         stored_config = json.loads((self.app_root / settings.CONST_MAXBOT_CONFIG_FILE).read_text())
         assert stored_config["accounts"]["fami_password"] == ""
 
