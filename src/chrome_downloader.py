@@ -12,12 +12,15 @@ import json
 import logging
 import os
 import platform
+import hashlib
+import stat
 import sys
 import zipfile
 from io import BytesIO
 from typing import Optional, Tuple
 
 import requests
+import security_utils
 
 logger = logging.getLogger(__name__)
 
@@ -56,14 +59,15 @@ def get_chrome_download_info(no_ssl: bool = False) -> Optional[Tuple[str, str]]:
     Get Chrome download URL and version from Chrome for Testing API.
 
     Args:
-        no_ssl: If True, use HTTP instead of HTTPS
+        no_ssl: Deprecated. Insecure HTTP downloads are not allowed.
 
     Returns:
         Tuple of (download_url, version) or None if failed
     """
-    api_url = CHROME_FOR_TESTING_API
     if no_ssl:
-        api_url = api_url.replace("https://", "http://")
+        raise ValueError("insecure Chrome downloads are disabled")
+
+    api_url = CHROME_FOR_TESTING_API
 
     try:
         response = requests.get(api_url, timeout=30)
@@ -132,11 +136,14 @@ def download_chrome(download_dir: Optional[str] = None, no_ssl: bool = False) ->
 
     Args:
         download_dir: Directory to download Chrome to. If None, uses default.
-        no_ssl: If True, use HTTP instead of HTTPS for download
+        no_ssl: Deprecated. Insecure HTTP downloads are not allowed.
 
     Returns:
         Path to Chrome executable or None if download failed
     """
+    if no_ssl:
+        raise ValueError("insecure Chrome downloads are disabled")
+
     if download_dir is None:
         # Use default directory relative to this script
         download_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), DEFAULT_CHROME_DIR)
@@ -168,11 +175,7 @@ def download_chrome(download_dir: Optional[str] = None, no_ssl: bool = False) ->
 
     for attempt in range(max_retries):
         try:
-            download_url = url
-            if attempt > 0 and no_ssl:
-                download_url = url.replace("https://", "http://")
-
-            response = requests.get(download_url, timeout=300, stream=True)
+            response = requests.get(url, timeout=300, stream=True)
             response.raise_for_status()
 
             # Show download progress
@@ -196,6 +199,7 @@ def download_chrome(download_dir: Optional[str] = None, no_ssl: bool = False) ->
 
             print()  # New line after progress
             content = b''.join(chunks)
+            content_sha256 = hashlib.sha256(content).hexdigest()
             break
 
         except requests.RequestException as e:
@@ -209,9 +213,12 @@ def download_chrome(download_dir: Optional[str] = None, no_ssl: bool = False) ->
     try:
         archive = BytesIO(content)
         with zipfile.ZipFile(archive, 'r') as zip_file:
-            zip_file.extractall(download_dir)
+            safe_extract_zip(zip_file, download_dir)
     except zipfile.BadZipFile as e:
         logger.error(f"Failed to extract Chrome archive: {e}")
+        return None
+    except ValueError as e:
+        logger.error(f"Unsafe Chrome archive rejected: {e}")
         return None
 
     # Verify extraction
@@ -219,12 +226,41 @@ def download_chrome(download_dir: Optional[str] = None, no_ssl: bool = False) ->
     if chrome_path:
         # Make executable on Unix systems
         if not sys.platform.startswith("win"):
-            os.chmod(chrome_path, 0o755)
+            os.chmod(chrome_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        write_download_manifest(download_dir, version, url, content_sha256)
         print(f"[Chrome Downloader] Chrome installed successfully: {chrome_path}")
         return chrome_path
 
     logger.error("Chrome extraction succeeded but executable not found")
     return None
+
+
+def safe_extract_zip(zip_file: zipfile.ZipFile, target_dir: str) -> None:
+    is_safe, unsafe_name = security_utils.safe_zip_member_names(zip_file.namelist())
+    if not is_safe:
+        raise ValueError(f"unsafe zip member path: {unsafe_name}")
+
+    target_abs = os.path.abspath(target_dir)
+    for member in zip_file.infolist():
+        member_path = os.path.abspath(os.path.join(target_abs, member.filename))
+        if os.path.commonpath([target_abs, member_path]) != target_abs:
+            raise ValueError(f"unsafe zip member path: {member.filename}")
+    zip_file.extractall(target_abs)
+
+
+def write_download_manifest(download_dir: str, version: str, url: str, sha256: str) -> None:
+    manifest_path = os.path.join(download_dir, "chrome-download-manifest.json")
+    manifest = {
+        "source": "Chrome for Testing",
+        "version": version,
+        "url": url,
+        "sha256": sha256,
+    }
+    try:
+        with open(manifest_path, "w", encoding="utf-8") as outfile:
+            json.dump(manifest, outfile, indent=2)
+    except OSError as exc:
+        logger.warning(f"Failed to write Chrome download manifest: {exc}")
 
 
 def find_system_chrome() -> Optional[str]:
@@ -270,11 +306,14 @@ def ensure_chrome_available(download_dir: Optional[str] = None, no_ssl: bool = F
 
     Args:
         download_dir: Directory to download Chrome to if needed
-        no_ssl: If True, use HTTP instead of HTTPS
+        no_ssl: Deprecated. Insecure HTTP downloads are not allowed.
 
     Returns:
         Path to Chrome executable or None if unavailable
     """
+    if no_ssl:
+        raise ValueError("insecure Chrome downloads are disabled")
+
     # First, check if Chrome is installed on the system
     system_chrome = find_system_chrome()
     if system_chrome:
