@@ -775,10 +775,13 @@ async def main(args):
             await asyncio.sleep(0.1)
             continue
 
-        # Gate: block platform dispatching until refresh_datetime target time
-        if await check_refresh_datetime_gate(tab, config_dict, refresh_datetime_state):
-            await asyncio.sleep(0.1)
-            continue
+        is_ticket_login_page = 'ticket.com.tw' in url and '/utk13/utk1306_' in url.lower()
+        # ponytail: allow pre-sale login; purchase pages still wait for refresh_datetime.
+        if not is_ticket_login_page:
+            # Gate: block platform dispatching until refresh_datetime target time
+            if await check_refresh_datetime_gate(tab, config_dict, refresh_datetime_state):
+                await asyncio.sleep(0.1)
+                continue
 
         # Cloudflare challenge detection (only on URL change to avoid performance hit)
         # After 3 consecutive failures on same URL, stop retrying to avoid infinite loop

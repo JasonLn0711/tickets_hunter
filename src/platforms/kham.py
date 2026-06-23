@@ -2893,7 +2893,7 @@ async def nodriver_kham_main(tab, url, config_dict, ocr):
                             traceback.print_exc()
 
         # Login page handling (UTK1306)
-        if '/utk13/utk1306_.aspx' in url.lower():
+        if '/utk13/utk1306_' in url.lower():
             # Close dialog buttons
             try:
                 el_btn = await tab.query_selector('div.ui-dialog-buttonset > button.ui-button')
@@ -2996,6 +2996,16 @@ async def nodriver_ticket_login(tab, account, password, config_dict):
             inputed_text = await tab.evaluate('document.querySelector("#ctl00_ContentPlaceHolder1_M_ACCOUNT").value')
             if not inputed_text or len(inputed_text) == 0:
                 await el_email.send_keys(account)
+                await tab.evaluate(f'''
+                    (() => {{
+                        const el = document.querySelector("#ctl00_ContentPlaceHolder1_M_ACCOUNT");
+                        if (el && !el.value) {{
+                            el.value = {json.dumps(account)};
+                            el.dispatchEvent(new Event("input", {{ bubbles: true }}));
+                            el.dispatchEvent(new Event("change", {{ bubbles: true }}));
+                        }}
+                    }})()
+                ''')
                 is_email_sent = True
             else:
                 if inputed_text == account:
@@ -3020,8 +3030,21 @@ async def nodriver_ticket_login(tab, account, password, config_dict):
                 await el_pass.click()
                 if len(password) > 0:
                     await el_pass.send_keys(password)
+                    await tab.evaluate(f'''
+                        (() => {{
+                            const el = document.querySelector("#ctl00_ContentPlaceHolder1_M_PASSWORD");
+                            if (el && !el.value) {{
+                                el.value = {json.dumps(password)};
+                                el.dispatchEvent(new Event("input", {{ bubbles: true }}));
+                                el.dispatchEvent(new Event("change", {{ bubbles: true }}));
+                            }}
+                        }})()
+                    ''')
                     is_password_sent = True
                 await tab.sleep(0.1)
+            else:
+                if inputed_text == password:
+                    is_password_sent = True
         except Exception as exc:
             debug.log("Input password fail:", exc)
 
@@ -5805,4 +5828,3 @@ async def nodriver_ticket_switch_to_auto_seat(tab):
         pass
 
     return is_switch_to_auto_seat
-
